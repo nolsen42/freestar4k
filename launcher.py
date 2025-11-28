@@ -166,11 +166,11 @@ class Launcher(wx.Frame):
         page2.SetSizer(pg2s)
         
         oo = 150
-        mx = wx.StaticText(page2, label="Main Location:", pos=(oo+20, 20))
+        mx = wx.StaticText(page2, label="Full Location Name:", pos=(oo+20, 20))
         pg2s.Add(mx, 0, wx.ALL, 2)
         mainloc = wx.TextCtrl(page2, pos=(oo+20,  40))
         pg2s.Add(mainloc, 0, wx.ALL | wx.EXPAND, 2)
-        pg2s.Add(wx.StaticText(page2, label="Display Name:"), 0, wx.ALL, 2)
+        pg2s.Add(wx.StaticText(page2, label="Location Display Name:"), 0, wx.ALL, 2)
         mainloc2 = wx.TextCtrl(page2)
         pg2s.Add(mainloc2, 0, wx.ALL | wx.EXPAND, 2)
 
@@ -788,7 +788,7 @@ class Launcher(wx.Frame):
         aboutsizer = wx.BoxSizer(wx.VERTICAL)
         abouttext = wx.StaticText(about, label="FreeStar 4k Launcher\nVersion 1.0", style=wx.ALIGN_CENTER)
         logo = wx.StaticBitmap(about, bitmap=wx.Bitmap("launcher/icon_128x128.png", wx.BITMAP_TYPE_PNG))
-        abouttext2 = wx.StaticText(about, label="Developed by 9D Crew\nA special thanks to COLSTER for helping with gathering STAR fonts!\nThanks to Malek Masoud for creating the Extended Forecast background!\nIf you are Bill Goodwill, creator of the WS4000 Simulator, please do not use FreeStar simulators.\nThanks to This program is licensed under the GNU General Public License v3.0 or later.\nFor questions, visit https://freestar.lewolfyt.cc/", style=wx.ALIGN_CENTER)
+        abouttext2 = wx.StaticText(about, label="Developed by 9D Crew\nA special thanks to COLSTER for helping with gathering STAR fonts!\nThanks to Nick S. for creating the icons used by this simulator.\nThanks to Bill Goodwill for contributing to The Weather Channel community by creating the WS4000 simulator.\nIf you are Bill Goodwill, creator of the WS4000 Simulator, please do not use FreeStar simulators.\nThis program is licensed under the GNU General Public License v3.0.\nFor questions, visit https://freestar.lewolfyt.cc/", style=wx.ALIGN_CENTER)
         aboutsizer.Add(abouttext, 0, wx.ALL | wx.ALIGN_CENTER, 10)
         aboutsizer.Add(logo, 0, wx.ALL | wx.ALIGN_CENTER, 10)
         aboutsizer.Add(abouttext2, 1, wx.ALL | wx.ALIGN_CENTER, 10)

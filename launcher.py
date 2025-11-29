@@ -667,6 +667,8 @@ class Launcher(wx.Frame):
         pas.Add(noaudio, 0, wx.ALL, 2)
         p8sizer.Add(pa, 0, wx.ALL | wx.EXPAND, 2)
         
+        p8sizer.Add(wx.StaticText(page8, label="Extensions:"), 0, wx.ALL | wx.EXPAND, 4)
+        
         p8sizer.Add(extensionsel, 1, wx.ALL | wx.EXPAND, 4)
         
         if conf_exist:

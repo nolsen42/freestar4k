@@ -691,9 +691,9 @@ class Launcher(wx.Frame):
             if 4 in flg: misc.add("ceiling_colon")
             if 5 in flg: misc.add("ccspace")
             if 6 in flg: misc.add("oldtitles")
-            if 6 in flg: misc.add("warnpalbug")
-            if 7 in flg: misc.add("oldal")
-            if 8 in flg: misc.add("uppercaseAMPM")
+            if 7 in flg: misc.add("warnpalbug")
+            if 8 in flg: misc.add("oldal")
+            if 9 in flg: misc.add("uppercaseAMPM")
 
             items.append(("mainloc", str(mainloc.GetValue())))
             items.append(("mainloc2", str(mainloc2.GetValue())))

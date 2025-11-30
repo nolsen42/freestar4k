@@ -6,9 +6,10 @@ import time as tm
 import math as m
 import pygame as pg
 import requests as r
-import wakepy
 from io import BytesIO
 import runpy
+
+VERSION = "1.0.1"
 
 audiorate = 44100
 widescreen = False
@@ -94,7 +95,7 @@ schedule = []
 
 sm2 = True
 
-offload = False
+compress = False
 
 jr = True
 
@@ -108,6 +109,8 @@ ldllf = False
 adevice = None
 
 vencoder = "libx264"
+
+mute = False
 
 try:
     import conf
@@ -155,8 +158,11 @@ try:
     vencoder = conf.vencoder
     mute = conf.mute
     widescreen = conf.widescreen
+    #all of these were added after release, so i actually have to check for them. fun!
+    compress = getattr(conf, "compress", False)
 except ModuleNotFoundError:
-    pass
+    print("Configuration not found! Try saving your configuration again.")
+    exit(1)
 
 if not mute:
     pg.mixer.init(audiorate, devicename=(adevice if adevice != "Default" else None))
@@ -184,12 +190,12 @@ if sockets:
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 screenw = 768 if not widescreen else 1024
-if offload:
+if compress:
     win = pg.Surface((screenw, 480))
-    rwin = pg.display.set_mode((320, 64))
+    rwin = pg.display.set_mode((int(screenw//1.2), 480))
 else:
     win = pg.display.set_mode((screenw, 480), flags=(borderless*pg.NOFRAME), vsync=True)
-pg.display.set_caption("FreeStar 4k")
+pg.display.set_caption("FreeStar 4000 v1.0.1")
 
 ext_loaded = []
 for ext in extensions:
@@ -200,12 +206,21 @@ ldlfeedactive = (ldlfeed is not None and ldlfeed)
 avscale = (640 if not widescreen else 853, 480)
 
 if ldlfeedactive:
-    import cv2
-import numpy as np
+    try:
+        import cv2
+    except ModuleNotFoundError:
+        print("Install the opencv-python module to use feed input!")
+        ldlfeed = None
+        ldlfeedactive = False
+
 if outputs:
-    import av
-    avevent = th.Event()
-    avbuffer = pg.Surface(avscale)
+    try:
+        import av
+        avevent = th.Event()
+        avbuffer = pg.Surface(avscale)
+    except ModuleNotFoundError:
+        print("Install the av module to use stream output!")
+        outputs = None
 
 showing = 0
 
@@ -641,7 +656,7 @@ def getdata():
     global aldata
     datagot = False
     
-    while wakepy.keep.running():
+    while True:
         if datagot:
             ix += 1
             ix %= 60
@@ -1023,9 +1038,6 @@ def drawshadow(font, text, x, y, offset, color=(255, 255, 255), surface=win, mon
             if font in font_tallest:
                 coffset2 = font_tallest[font] - font.size(char)[1]
             surface.blit(scalec(frender(font, char, True, col), font, char, col, (fw if ofw is None else ofw, 1)), (x+mono*i+coffset, y+coffset2))
-
-if offload:
-    drawshadow(starfont32, "Content Offloaded", 4, 10, 3, surface=rwin, mono=18.15, ofw=1.07)
 
 @profiling_sect("ops")
 def drawingfilter(text, idx):
@@ -2441,6 +2453,8 @@ while working:
     lasttime = time + ""
     
     clear_profile()
+    if compress:
+        rwin.blit(pg.transform.smoothscale_by(win, (1/1.2, 1)), (0, 0))
     pg.display.flip()
     if outputs:
         avbuffer = win.copy()

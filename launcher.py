@@ -660,10 +660,14 @@ class Launcher(wx.Frame):
         metric = wx.CheckBox(pa, label="Metric Units")
         borderless = wx.CheckBox(pa, label="Borderless Window")
         widescreen = wx.CheckBox(pa, label="Widescreen")
+        compress = wx.CheckBox(pa, label="Compress Window")
+        compress.SetToolTip(wx.ToolTip("Compresses the window horizontally to match the expected aspect ratio. Normally, it is wider by a factor of 1.2x to match the actual 4000 framebuffer size."))
         noaudio = wx.CheckBox(pa, label="Mute Audio")
         pas.Add(metric, 0, wx.ALL, 2)
         pas.AddStretchSpacer()
         pas.Add(borderless, 0, wx.ALL, 2)
+        pas.AddStretchSpacer()
+        pas.Add(compress, 0, wx.ALL, 2)
         pas.AddStretchSpacer()
         pas.Add(widescreen, 0, wx.ALL, 2)
         pas.AddStretchSpacer()
@@ -682,6 +686,7 @@ class Launcher(wx.Frame):
             vencoder.SetValue(existing_conf.get("vencoder", "libx264"))
             widescreen.SetValue(existing_conf.get("widescreen", False))
             noaudio.SetValue(existing_conf.get("mute", False))
+            compress.SetValue(existing_conf.get("compress", False))
         
         def getconfig():
             items = []
@@ -737,6 +742,7 @@ class Launcher(wx.Frame):
             items.append(("vencoder", vencoder.GetValue()))
             items.append(("widescreen", widescreen.GetValue()))
             items.append(("mute", noaudio.GetValue()))
+            items.append(("compress", compress.GetValue()))
             iv = ins.GetValue()
             try:
                 iv = int(iv)
@@ -808,7 +814,7 @@ class Launcher(wx.Frame):
         
         about = wx.Panel(self.nb)
         aboutsizer = wx.BoxSizer(wx.VERTICAL)
-        abouttext = wx.StaticText(about, label="FreeStar 4k Launcher\nVersion 1.0", style=wx.ALIGN_CENTER)
+        abouttext = wx.StaticText(about, label="FreeStar 4k Launcher\nVersion 1.0.1", style=wx.ALIGN_CENTER)
         logo = wx.StaticBitmap(about, bitmap=wx.Bitmap("launcher/icon_128x128.png", wx.BITMAP_TYPE_PNG))
         abouttext2 = wx.StaticText(about, label="Developed by 9D Crew\nA special thanks to COLSTER for helping with gathering STAR fonts!\nThanks to Nick S. for creating the icons used by this simulator.\nThanks to Bill Goodwill for contributing to The Weather Channel community by creating the WS4000 simulator.\nIf you are Bill Goodwill, creator of the WS4000 Simulator, please do not use FreeStar simulators.\nThis program is licensed under the GNU General Public License v3.0.\nFor questions, visit https://freestar.lewolfyt.cc/", style=wx.ALIGN_CENTER)
         aboutsizer.Add(abouttext, 0, wx.ALL | wx.ALIGN_CENTER, 10)

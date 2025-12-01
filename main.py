@@ -2339,22 +2339,22 @@ while working:
             if ui and ooo:
                 drawshadow(starfont32, ldltext, 78+txoff-ldlextra*18, 403, 3, mono=gmono, char_offsets={})
             nextcrawlready = True
-            if len(crawls) > 0:
-                ldlinterval -= delta*seconds
-                if ldlinterval <= 0:
-                    ldlidx += 1
-                    ldlidx %= (8 + (ldlmode and bool(extraldltext)) + (ldllf and ldlmode))
-                    if ldlidx == 0 and not foreverldl:
-                        ldlreps -= 1
-                    if ldlreps <= 0 and not foreverldl:
-                        ldlon = False
-                    if ldlidx == 0 and not ldlmode:
-                        crawling = True
-                        crawlscroll = 0
-                    ldlinterval = ldlintervaltime*1
-                    if (ldlidx == 9 or (ldlidx == 8 and not extraldltext)):
-                        ldlinterval *= 3
-                    ldldrawidx = 0
+            
+            ldlinterval -= delta*seconds
+            if ldlinterval <= 0:
+                ldlidx += 1
+                ldlidx %= (8 + (ldlmode and bool(extraldltext)) + (ldllf and ldlmode))
+                if ldlidx == 0 and not foreverldl:
+                    ldlreps -= 1
+                if ldlreps <= 0 and not foreverldl:
+                    ldlon = False
+                if ldlidx == 0 and not ldlmode and (len(crawls) > 0):
+                    crawling = True
+                    crawlscroll = 0
+                ldlinterval = ldlintervaltime*1
+                if (ldlidx == 9 or (ldlidx == 8 and not extraldltext)):
+                    ldlinterval *= 3
+                ldldrawidx = 0
         elif (not (slide in ["lr", "cr"])) or alerting:
             if alerting:
                 alertactive %= len(alertdata[1])

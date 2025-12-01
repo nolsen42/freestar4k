@@ -2280,7 +2280,7 @@ while working:
                     ldltext = f'Barometric Pressure: {bp}'
                     pt = wxdata["current"]["conditions"]["pressureTendency"]
                     if pressuretrend == False:
-                        ldltext += " in."
+                        ldltext += " in." if not metric else "kPa"
                     elif pt == 0:
                         ldltext += " S"
                     elif pt in [1, 3]:

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import datetime as dt
 import os
 import random as rd
@@ -9,10 +10,13 @@ import requests as r
 from io import BytesIO
 import runpy
 
-VERSION = "1.0.2"
+VERSION = "1.1"
 
 audiorate = 44100
 widescreen = False
+lfmusic = False
+lsort = False
+smoothscale = False
 
 pg.display.init()
 pg.font.init()
@@ -133,7 +137,11 @@ try:
     crawlintervaltime = [15*minutes, 30*minutes, 1*hours, 2*hours, 3*hours, 4*hours, 6*hours, 8*hours, 12*hours, 24*hours][conf.crawlint]
     crawlinterval = crawlintervaltime*1
     crawls = [c[0] for c in conf.crawls if (c[1] and c[0])]
+
+    lsort = getattr(conf, "lsort", False)
     obsloc = [o for o in conf.obsloc if o[0] and o[1]]
+    if lsort:
+        obsloc = sorted(obsloc, key=lambda o : o[1])
     outputs = [o for o in conf.outputs if not o.startswith("#")]
     ldlfeed = conf.ldlfeed
     ldlbg = conf.ldlbg
@@ -160,10 +168,13 @@ try:
     widescreen = conf.widescreen
     #all of these were added after release, so i actually have to check for them. fun!
     compress = getattr(conf, "compress", False)
+    radarsetting = getattr(conf, "radarsetting", False)
+    lfmusic = getattr(conf, "musicsetting", 0)
+    smoothscale = getattr(conf, "smoothscale", True)
 except ModuleNotFoundError:
     print("Configuration not found! Try saving your configuration again.")
     exit(1)
-
+os.chdir(os.path.dirname(os.path.abspath(__file__))) #do this or everything explodes
 if not mute:
     pg.mixer.init(audiorate, devicename=(adevice if adevice != "Default" else None))
 
@@ -190,12 +201,14 @@ if sockets:
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 screenw = 768 if not widescreen else 1024
-if compress:
-    win = pg.Surface((screenw, 480))
-    rwin = pg.display.set_mode((int(screenw//1.2), 480))
-else:
-    win = pg.display.set_mode((screenw, 480), flags=(borderless*pg.NOFRAME), vsync=True)
-pg.display.set_caption("FreeStar 4000 v1.0.2")
+
+win = pg.Surface((screenw, 480))
+rwidth = screenw if not compress else int(screenw//1.2)
+rwin = pg.display.set_mode((rwidth, 480), flags=(borderless*pg.NOFRAME)|pg.RESIZABLE)
+
+pg.display.set_caption(f"FreeStar 4000 v{VERSION}")
+icon = pg.image.load("mwsicon.png")
+pg.display.set_icon(icon)
 
 ext_loaded = []
 for ext in extensions:
@@ -388,7 +401,7 @@ def draw_bg(top_offset=0, bh_offset=0, all_offset=0, special=None, box=True):
     win.fill(_gray)
     if special == "al":
         win.fill((64, 64, 64))
-    if not special:
+    if special != "al":
         if oldgrad:
             pg.draw.rect(win, bg_c[0], pg.Rect(0, 90-all_offset, screenw, 45))
             pg.draw.rect(win, bg_c[1], pg.Rect(0, 135-all_offset, screenw, 45))
@@ -412,6 +425,15 @@ def draw_bg(top_offset=0, bh_offset=0, all_offset=0, special=None, box=True):
         else:
             pg.draw.rect(win, bg_c[1], pg.Rect(0, 91-all_offset, screenw, 48+3))
             pg.draw.rect(win, bg_c[2], pg.Rect(0, 91+48+3-all_offset, screenw, 48+3))
+    if special == "df":
+        xoff = (screenw-768)//2
+        adjust = -6
+        for i  in range(4):
+            pg.draw.rect(win, box_c[0], pg.Rect(62+xoff, 90-all_offset+77*i+9, 622, 76+adjust))
+            pg.draw.rect(win, box_c[1], pg.Rect(65+xoff, 93-all_offset+77*i+9, 616, 70+adjust))
+            pg.draw.rect(win, box_c[2], pg.Rect(68+xoff, 96-all_offset+77*i+9, 610, 64+adjust))
+            pg.draw.rect(win, box_c[3], pg.Rect(71+xoff, 99-all_offset+77*i+9, 604, 58+adjust))
+            pg.draw.rect(win, box_c[4], pg.Rect(74+xoff, 102-all_offset+77*i+9, 598, 52+adjust))
     
     pg.draw.rect(win, ldl_c, pg.Rect(0, 400-all_offset-bh_offset, screenw, 80+all_offset+bh_offset))
     pg.draw.rect(win, (33, 26, 20), pg.Rect(0, 400-all_offset-bh_offset, screenw, 2))
@@ -646,6 +668,8 @@ def sign(n):
         return -1
     return 0
 
+dficons = [[] for _ in range(12)]
+
 def getdata():
     ix = 0
     global wxdata
@@ -661,7 +685,8 @@ def getdata():
             ix += 1
             ix %= 60
         try:
-            wxdata = r.get(f"https://wx.lewolfyt.cc/?loc={loc}"+("" if not metric else "&units=m")).json()
+            wxdata = r.get(f"https://wx.lewolfyt.cc/?loc={loc}"+("" if not metric else "&units=m")+"&extendeddays=10").json()
+
             if icontable[wxdata['current']['info']['iconCode']] is None:
                 mainicon = [(pg.Surface((1, 1), pg.SRCALPHA), None)]
             else:
@@ -679,6 +704,13 @@ def getdata():
                 for fr, ftime in micon:
                     nricon.append((fr.convert_alpha(), ftime))
                 ldllficon = nricon
+
+            for i in range(12):
+                ic = regionalicontable[wxdata['extended']['daypart'][i+4]['iconCode']]
+                if ic:
+                    dficons[i] = [(s.convert_alpha(), ft) for s, ft in pg.image.load_animation(f"icons_reg/{ic}.gif")]
+                else:
+                    dficons[i] = []
             
             az = [None, []]
             if wxdata["current"]["alerts"]:
@@ -786,7 +818,7 @@ def getdata():
             except:
                 print(tb.format_exc())
         
-        if "lr" in flavor or "cr" in flavor:
+        if "lr" in flavor:
             try:
                 if radar_provider == "apollo":
                     radardt = pg.image.load_animation(BytesIO(r.get(f"http://apollo.us.com:8008/radar_composite_animate.gif").content))
@@ -797,10 +829,27 @@ def getdata():
                     y = max(y, 0)
                     x = min(x, radardt[0][0].get_width()-screenw//2)
                     y = min(y, radardt[0][0].get_height()-240)
-                    for rd, t in radardt:
+                    for rad, t in radardt:
                         r2 = pg.Surface((screenw//2, 240))
-                        r2.blit(rd, (0, 0), pg.Rect(x, y, screenw//2, 240))
+                        r2.blit(rad, (0, 0), pg.Rect(x, y, screenw//2, 240))
                         radardata2.append((pg.transform.scale_by(r2, (2, 2)), t))
+                    radardata = radardata2
+            except:
+                print(tb.format_exc())
+        elif "cr" in flavor:
+            try:
+                if radar_provider == "apollo":
+                    radardt = pg.image.load(BytesIO(r.get(f"http://apollo.us.com:8008/radar_composite.png").content))
+                    radardata2 = []
+                    lat, long = wxdata["current"]["info"]["geocode"]
+                    x, y = mapper((mappoint1, mappoint2), lat, long)
+                    x = max(x, 0)
+                    y = max(y, 0)
+                    x = min(x, radardt.get_width()-screenw//2)
+                    y = min(y, radardt.get_height()-240)
+                    r2 = pg.Surface((screenw//2, 240))
+                    r2.blit(radardt, (0, 0), pg.Rect(x, y, screenw//2, 240))
+                    radardata2.append((pg.transform.scale_by(r2, (2, 2)), 0))
                     radardata = radardata2
             except:
                 print(tb.format_exc())
@@ -856,9 +905,9 @@ char_offsets_default = {
 
 def shorten_phrase(phrase : str):
     if "Showers" in phrase and phrase != "Showers":
-        return phrase.replace("Showers", "Shw")
-    if "Shower" in phrase and phrase != "Shower":
-        return phrase.replace("Shower", "Shw")
+        return phrase.replace("Showers", "Shw").replace("Snow Shw", "Hvy Snow")
+    if "Shower" in phrase and phrase != "Shower" and phrase != "Showers":
+        return phrase.replace("Shower", "Shw").replace("Rain Shw", "Hvy Rain")
     if "Light" in phrase:
         return phrase.replace("Light", "Lgt")
     if "Cldy" in phrase:
@@ -935,16 +984,18 @@ def drawchar(char, cset, x, y, color):
     
     win.blit(cset2, (x, y), pg.Rect((ix*32)%cset.get_width(), int(ix*32//cset.get_width())*(cset.get_height()//6), 32, cset.get_height()//6))
 
+white = (215, 215, 215)
+
 @profiling_sect("text")
-def drawshadow(font, text, x, y, offset, color=(255, 255, 255), surface=win, mono=0, ofw=None, bs=False, char_offsets=char_offsets_default, upper=False, jr_override=None, shadow=True):
+def drawshadow(font, text, x, y, offset, color=white, surface=win, mono=0, ofw=None, bs=False, char_offsets=char_offsets_default, upper=False, jr_override=None, shadow=True):
     if text == "":
         return
     if not jr:
-        t = [c for ch in text if c not in "±"]
+        t = [c for ch in text if c not in "±≠"]
         text = "".join(t)
     if jr:
-        fx = [[]] #shake, (none yet)
-        fxa = [False]
+        fx = [[], []] #shake, nofill
+        fxa = [False, False]
         sheet = jrfontnormal
         y += 6
         if font == largefont32:
@@ -970,17 +1021,27 @@ def drawshadow(font, text, x, y, offset, color=(255, 255, 255), surface=win, mon
                     io += 1
                     fxa[0] = not fxa[0]
                     continue
+                if char == "≠":
+                    io += 1
+                    fxa[1] = not fxa[1]
+                    continue
                 fxo = (0, 0)
                 if fxa[0]:
                     fxo = (rd.randint(-1, 1), rd.randint(-1, 1))
                     fx[0].append(fxo)
                 drawchar(char, sheet[1], x+fxo[0]+(i-io)*m.floor(mono)+char_offsets.get(char, 0), y+fxo[1], None)
-        fxa = [False]
+        fxa = [False, False]
         io = 0
         for i, char in enumerate(text):
             if char == "±":
                 io += 1
                 fxa[0] = not fxa[0]
+                continue
+            if char == "≠":
+                io += 1
+                fxa[1] = not fxa[1]
+                continue
+            if fxa[1]:
                 continue
             fxo = (0, 0)
             if fxa[0]:
@@ -1174,17 +1235,17 @@ if sockets and sock:
     th.Thread(target=socket_handler, daemon=True).start()
 
 gmono = 18.15
-yeller = (255, 255, 0)
+yeller = (215, 215, 0)
+yeller = (187, 182, 45)
 def drawpage_fmt(lines : list, formatting : list):
     yy = 109-linespacing*4
     fmt = [1, "W"]
     colors = {
-        "W": (255, 255, 255),
+        "W": white,
         "R": (255, 0, 0),
         "G": (0, 255, 0),
         "B": (0, 0, 255),
         "C": (0, 255, 255),
-        "Y": yeller,
         "M": (255, 0, 255),
         "K": (0, 0, 0)
     }
@@ -1263,7 +1324,7 @@ def wraptext(text, ll=32):
         final.append(nl.strip())
     return final
 
-def drawing(text, amount):
+def drawing(text, amount, ram=False):
     final = ""
     am = amount*1
     for char in text:
@@ -1274,7 +1335,13 @@ def drawing(text, amount):
             continue
         am -= 1
         final += char
-    return final    
+    if (am % 1) != 0 and amount < len(text):
+        txl = list(final)
+        txl.insert(-1, "≠")
+        final = "".join(txl)
+    if ram:
+        return final, am
+    return final
 
 crawling = False
 
@@ -1294,6 +1361,7 @@ cl = pg.time.Clock()
 lastlasttime = 0
 lasttime = 0
 ldldrawidx = 0
+generaldrawidx = 0
 
 slide = "cc"
 
@@ -1385,10 +1453,15 @@ for ext in ext_loaded:
 
 if not mute:
     beep = pg.Sound("beep.ogg")
-radarHeader = pg.image.load("radar.png")
+radarx = ['', '99'][radarsetting]
+radarHeader = pg.transform.scale(pg.image.load(f"radar{radarx}.png"), (768, 480))
+radarHeaderC = pg.transform.scale(pg.image.load(f"radarc{radarx}.png"), (768, 480))
 if screenw > 768:
     radarLeft = pg.transform.scale(radarHeader.subsurface(pg.Rect(0, 0, 1, radarHeader.get_height())), (m.ceil((screenw-768)/2), radarHeader.get_height()))
     radarRight = pg.transform.scale(radarHeader.subsurface(pg.Rect(radarHeader.get_width()-1, 0, 1, radarHeader.get_height())), (m.ceil((screenw-768)/2), radarHeader.get_height()))
+if screenw > 768:
+    radarLeftC = pg.transform.scale(radarHeaderC.subsurface(pg.Rect(0, 0, 1, radarHeaderC.get_height())), (m.ceil((screenw-768)/2), radarHeaderC.get_height()))
+    radarRightC = pg.transform.scale(radarHeaderC.subsurface(pg.Rect(radarHeaderC.get_width()-1, 0, 1, radarHeaderC.get_height())), (m.ceil((screenw-768)/2), radarHeaderC.get_height()))
 
 latestframe = pg.Surface((1, 1))
 vidcap = None
@@ -1402,9 +1475,15 @@ def domusic():
     if mute:
         return
     while True:
-        if not musicch.get_busy():
-            musicch.play(pg.mixer.Sound(rd.choice(musicfiles)))
-        tm.sleep(0.1)
+        musicon = True
+        if ldlmode and lfmusic:
+            musicon = False
+        if musicon:
+            if not musicch.get_busy():
+                musicch.play(pg.mixer.Sound(rd.choice(musicfiles)))
+        else:
+            musicch.stop()
+        tm.sleep(0.02)
 
 import queue as q
 audio_queue = q.Queue()
@@ -1565,13 +1644,13 @@ def dowrite_th(strea : tuple, url):
                 try:
                     for packet in stream[2].encode(af):
                         stream[0].mux(packet)
-                except av.BrokenPipeError:
+                except (av.BrokenPipeError, av.EOFError):
                     resetup.add(url)
         
         try:
             for packet in stream[1].encode(frame):
                 stream[0].mux(packet)
-        except av.BrokenPipeError:
+        except (av.BrokenPipeError, av.EOFError):
             resetup.add(url)
         
         
@@ -1678,7 +1757,7 @@ class AccuraterClock():
         frame_duration = 1.0 / float(fps)
 
         if now - self.next_frame > 0.5:
-            print("reset timer")
+            #reset timer
             self.next_frame = now + frame_duration
 
         #if we're behind, speed up a little
@@ -1729,6 +1808,11 @@ fired = False
 diag = [0, tm.perf_counter()]
 alerting = False
 txoff = (screenw-768)//2
+with open("introtext.txt") as f:
+    intros = f.read().strip().rstrip().split("\n")
+def drawreg(surf, pos, ix=0):
+    if surf:
+        win.blit(surf[ix][0], (pos[0]-surf[ix][0].get_width()//2, pos[1]-surf[ix][0].get_height()//2))
 while working:
     for event in pg.event.get():
         if event.type == pg.MOUSEBUTTONDOWN:
@@ -1777,6 +1861,9 @@ while working:
     else:
         radaridx = m.ceil(6-radartime/radarint)
     
+    if slide != "intro":
+        intropicked = False
+    
     def nextslide():
         global slideinterval
         global slideidx
@@ -1785,6 +1872,8 @@ while working:
         global radartime
         global crawling
         global ldlon
+        global generaldrawidx
+        generaldrawidx = 0
         radartime = radarint*6 + radarhold
         slideidx += 1
         bg_g = draw_palette_gradient(pg.Rect(0, 0, screenw, 315), [*bg_c, bg_c[-1]])
@@ -1823,7 +1912,7 @@ while working:
             else:
                 slideinterval = flavor_times[slideidx]*seconds
     if slideinterval <= 0 and not ldlmode:
-        if slide == "lf":
+        if slide in ["lf", "df"]:
             subpage += 1
             if subpage > 2:
                 subpage = 0
@@ -1839,24 +1928,34 @@ while working:
     
     slide = flavor[slideidx]
     
+    if slide == "intro" and not intropicked:
+        introtx = rd.choice(intros)
+        intropicked = True
+    
     try:
-        ccphrase = wxdata["current"]["info"]["phraseLong"].replace("in the Vicinity", "Near").replace("Thunderstorm", "T'Storm")
+        sanitize = (lambda tx : tx.replace("in the Vicinity", "Near").replace("Thunderstorm", "T'Storm"))
+        ccphrase = sanitize(wxdata["current"]["info"]["phraseLong"])
+        if len(ccphrase) > len(" Partly Cloudy "): #sorry i had no better text reference
+            ccphrase = sanitize(wxdata["current"]["info"]["phraseMedium"])
+            if len(ccphrase) > len(" Partly Cloudy "):
+                ccphrase = sanitize(wxdata["current"]["info"]["phraseShort"])
     except:
         ccphrase = ""
     
     iconidx += 0.125*delta*seconds
     iconidx %= len(mainicon)
     iconidx2 += 0.125*delta*seconds
-    iconidx2 %= len(ldllficon)
+    iconidx2 %= max(len(ldllficon), max([len(i) for i in dficons]))
     iconidx3 += 0.125*delta*seconds
     iconidx3 %= 7
     #delta = cl.get_fps()
     crawlinterval -= delta * seconds
     profiling_start()
-    if crawlinterval <= 0 and nextcrawlready:
+    if crawlinterval <= 0 and nextcrawlready and crawls:
         crawlactive += 1
-        crawlactive %= len(crawls)
         crawlinterval = crawlintervaltime*1
+    if crawls:
+        crawlactive %= len(crawls)
     if not working or quit_requested:
         for ext in ext_loaded:
             if 'quit' in ext:
@@ -1899,10 +1998,10 @@ while working:
     else:
         if (slide == "oldcc"):
             #win.blit(ws1b, (0, 0))
-            draw_bg(top_offset=192, all_offset=ao, bh_offset=ao//2)
+            draw_bg(top_offset=(192*("fullOldCC" not in old)), all_offset=ao, bh_offset=ao//2)
         else:
             #win.blit(ws1, (0, 0))
-            spec = ["al"]
+            spec = ["al", "df"]
             draw_bg(all_offset=ao, bh_offset=ao//2, special=(slide if slide in spec else None), box=(slide != "xf"))
             if slide == "xf":
                 for i in range(3+widescreen):
@@ -1910,17 +2009,21 @@ while working:
     profiling_end("ops")
     if not ldlmode:
         win.blit(logo, (txoff//3, ldl_y))
+    
     if ui and not ldlmode:
         if slide in ["cc", "oldcc"]:
             if slide == "oldcc":
-                if textpos >= 2:
+                #commented out for now, i need to decide how historically accurate i want this to be
+                #see: twcarchive ws4000 timeline (february 20, 1991 update)
+                # if textpos >= 2:
+                if True:
                     ln = f"Now at {locname}"
                     if veryuppercase:
                         ln = ln.upper()
-                    drawshadow(startitlefont, ln, 194+txoff//3, 46+ldl_y, 3, mono=18, ofw=1.07)
-                else:
-                    drawshadow(startitlefont, "Current", 194+txoff//3, 25+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
-                    drawshadow(startitlefont, "Conditions", 194+txoff//3, 52+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
+                    drawshadow(startitlefont, ln, 194+txoff//3, 30, 3, mono=18, ofw=1.07)
+                # else:
+                #     drawshadow(startitlefont, "Current", 194+txoff//3, 25+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
+                #     drawshadow(startitlefont, "Conditions", 194+txoff//3, 52+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
                 if wxdata is None:
                     if veryuppercase:
                         drawpage(["NO REPORT AVAILABLE"])
@@ -1992,7 +2095,7 @@ while working:
                     drawshadow(startitlefont, "Current", 194+txoff//3, 25+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
                     drawshadow(startitlefont, "Conditions", 194+txoff//3, 52+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
                 
-                if wxdata is None:
+                if not wxdata:
                     drawshadow(starfont32, "       No Report Available", 80+txoff, 109+linespacing*2.5, 3, mono=gmono)
                 else:
                     drawshadow(starfont32, locname, 367+txoff, 91+ldl_y, 3, color=yeller, ofw=1.07, mono=15, upper=veryuppercase)
@@ -2100,9 +2203,7 @@ while working:
             drawshadow(startitlefont, your+"Local Forecast" if not ("your" in old) else "Your Local Forecast", 181+txoff//3, 39+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True, upper=veryuppercase)
             #win.blit(pg.transform.smoothscale_by(noaa, (1.2, 1)), (412, 40))
             
-            if wxdata is None:
-                drawshadow(starfont32, "       No Report Available", 80+txoff, 109+linespacing*2.5, 3, mono=gmono)
-            else:
+            if wxdata:
                 fcsts = wxdata["extended"]["daypart"]
                 # txt = ""
                 # for fcst in fcsts[:3]:
@@ -2121,6 +2222,14 @@ while working:
                 win.blit(radarRight, (screenw-radarRight.get_width(), 0))
             win.blit(radarHeader, (screenw//2 - radarHeader.get_width()//2, 0))
             win.blit(logorad, (screenw//2 - radarHeader.get_width()//2, 0))
+        elif slide == "cr":
+            if radardata:
+                win.blit(radardata[0][0], (0, 0))
+            if screenw > 768:
+                win.blit(radarLeftC, (0, 0))
+                win.blit(radarRightC, (screenw-radarRightC.get_width(), 0))
+            win.blit(radarHeaderC, (screenw//2 - radarHeaderC.get_width()//2, 0))
+            win.blit(logorad, (screenw//2 - radarHeaderC.get_width()//2, 0))
         elif slide == "al":
             def supper(text):
                 if "uppercaseAMPM" in old:
@@ -2163,8 +2272,9 @@ while working:
                     drawshadow(starfont32, dat, 76+xx+txoff, 354+ldl_y, 3, mono=gmono, char_offsets={})
         elif slide == "xf":
             drawshadow(startitlefont, efname, 180+txoff//3, 23+ldl_y, 3, mono=15, ofw=1.07, upper=veryuppercase)
-            drawshadow(startitlefont, "Extended Forecast", 180+txoff//3, 49+ldl_y, 3, color=yeller, mono=15, ofw=1.07, upper=veryuppercase)
+            drawshadow(startitlefont, "Extended Forecast", 180+txoff//3, 49+ldl_y, 3, mono=15, ofw=1.07, upper=veryuppercase, color=yeller)
             def sane(text):
+                text = text.replace("Thunderstorm", "T'Storm")
                 if len(wraptext(text, 10)) > 2:
                     if "/" in text:
                         tl = list(text)
@@ -2190,7 +2300,8 @@ while working:
             if wxdata:
                 for i in range(3+widescreen):
                     d = dt.date.today() + dt.timedelta(days=(i+2+subpage*3))
-                    drawshadow(starfont32, d.strftime("%a").upper(), 118+i*230+to, 106+yo, 3, color=yeller, mono=gmono)
+                    colow = {"color": yeller} if "whiteXF" not in old else {}
+                    drawshadow(starfont32, d.strftime("%a").upper(), 118+i*230+to, 106+yo, 3, mono=gmono, **colow)
                     ix = i*2+4+subpage*6-(wxdata["extended"]["daypart"][0]["dayOrNight"] == "N")
                     fctx = sane(wxdata["extended"]["daypart"][ix]["phraseLong"])
                     fctx = wraptext(fctx, 10)
@@ -2220,6 +2331,74 @@ while working:
                     "",
                     f"Precipitation: {['Normal', 'Above normal', 'Below normal'][clidata['precip_outlook']]}"
                 ], vshift=-20)
+        elif slide == "sf":
+            drawshadow(startitlefont, "School", 194+txoff//3, 25+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
+            drawshadow(startitlefont, "Forecast", 194+txoff//3, 52+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
+            
+            if wxdata is None:
+                drawshadow(starfont32, "       No Report Available", 80+txoff, 109+linespacing*2.5, 3, mono=gmono)
+            else:
+                fcsts = wxdata["hourly"]
+                page = []
+                times = []
+                for fcst in fcsts:
+                    dat = dt.datetime.fromtimestamp(fcst["valid"])
+                    hour = dat.hour
+                    if hour in [6, 7, 8, 13, 14, 15, 16]:
+                        times.append((fcst, dat.strftime("%I:%M %p")[1:]))
+                for time in times:
+                    line = time[1]
+                    line = textmerge(line, f"        {shorten_phrase(time[0]['phraseShort'])}")
+                    line = textmerge(line, f"                  {round(time[0]['temperature'])}")
+                    line = textmerge(line, f"                     {min(round(time[0]['rainChance']+time[0]['snowChance']+time[0]['sleetChance']+time[0]['freezingRainChance']), 100)}%")
+                    precip_type = None
+                    ch = [(time[0]['snowChance'], 'Snow'), (time[0]['sleetChance'], 'Sleet'), (time[0]['freezingRainChance'], 'FrzRn'), (time[0]['rainChance'], 'Rain')]
+                    ch2 = sorted(ch, key=lambda x: x[0], reverse=True)
+                    if ch2[0][0] == 0:
+                        precip_type = ""
+                    else:
+                        precip_type = ch2[0][1]
+                    line = textmerge(line, f"                          {precip_type}")
+                    
+                    page.append(line)
+                drawpage(page, f"        WEATHER   °{temp_symbol} PRECIP")
+        elif slide == "df":
+            drawshadow(startitlefont, "Daypart Forecast", 181+txoff//3, 39+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True, upper=veryuppercase)
+            if not wxdata:
+                drawshadow(starfont32, "       No Report Available", 80, 109+linespacing*2.5+ldl_y, 3, mono=gmono)
+            else:
+                for i  in range(4):
+                    j = i+4+subpage*4
+                    header = wxdata["extended"]["daypart"][j]["name"].upper()
+                    header = textmerge(header, f"                {'HI' if wxdata['extended']['daypart'][j]['dayOrNight'] == 'D' else 'LO'}  WIND")
+                    drawshadow(smallfont, header, 62+14+txoff, 84+ldl_y+77*i+9, 3, mono=gmono)
+                    ps = wxdata["extended"]["daypart"][j]["phraseShort"]
+                    pl = wxdata["extended"]["daypart"][j]["phraseLong"]
+                    drawshadow(starfont32, ps if len(pl) > 14 else pl, 62+14+txoff, 96+14+ldl_y+77*i+9, 3, mono=gmono)
+                    drawshadow(starfont32, str(wxdata["extended"]["daypart"][j]["temperature"]), 62+14+txoff+18*16, 96+14+ldl_y+77*i+9, 3, mono=gmono)
+                    ws = wxdata["extended"]["daypart"][j]["windSpeed"]
+                    wc = wxdata["extended"]["daypart"][j]["windCardinal"]
+                    if ws > 9:
+                        wt = textmerge(windreduce(wc), f"  {ws}")
+                    elif ws == 0:
+                        wt = "Calm"
+                    else:
+                        wt = textmerge(wc, f"   {ws}")
+                    drawshadow(starfont32, wt, 62+14+txoff+18*20, 96+14+ldl_y+77*i+9, 3, mono=gmono)
+                    drawreg(dficons[i], (640, 96+14+ldl_y+77*i+24), ix=(m.floor(iconidx2) % len(dficons[i])))
+        elif slide == "intro":
+            drawshadow(startitlefont, "Welcome!", 181+txoff//3, 39+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True, upper=veryuppercase)
+
+            generaldrawidx += 3.5
+            dr = generaldrawidx*1
+            it = f"Hello, {locname}!"
+            tx, dr = drawing(it, dr, True)
+            drawshadow(largefont32, tx, 98+txoff, 109+linespacing/2+ldl_y, 3, mono=gmono)
+            
+            for i, line in enumerate(wraptext(introtx, 30)):
+                tx, dr = drawing(line, dr, True)
+                drawshadow(starfont32, tx, 98+txoff, 109+linespacing*1.75+32*i+ldl_y, 3, mono=gmono, char_offsets={})
+                #dr -= len(line.replace(" ", ""))
         elif slide == "test":
             drawshadow(startitlefont, "Test Page", 181, 25+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True)
             drawshadow(startitlefont, "of Awesomeness", 181, 54+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True)
@@ -2234,7 +2413,7 @@ while working:
         beepch.play(beep)
     if alerting:
         crawling = True
-    if ldlon and not ldlmode:
+    if ldlon and ldlmode:
         colorbug_started = False
     if (ldlon and not serial) or not ldlmode or alerting:
         if serial:
@@ -2331,7 +2510,7 @@ while working:
                     win.blit(mm, (xx+337-25, 418-15))
                 
             if ldldrawing:
-                ldldrawidx += 3
+                ldldrawidx += 2.5
                 if veryuppercase and ldlidx != 0:
                     ldltext = ldltext.upper()
                 ldltext = drawing(ldltext, ldldrawidx)
@@ -2360,13 +2539,16 @@ while working:
                 alertactive %= len(alertdata[1])
                 crawl = alertdata[1][alertactive].upper()
             else:
-                crawl = crawls[crawlactive]
+                if len(crawls) > 0:
+                    crawl = crawls[crawlactive]
+                else:
+                    crawl = 0
             nextcrawlready = False
             crawlscroll += 2*delta*seconds
             if alerting:
                 pg.draw.rect(win, ((187, 17, 0) if (slide not in ["lr", "cr"] or ("warnpalbug" not in old)) else (128, 16, 0)) if True or "ADVISORY" not in crawl else (126, 31, 0), pg.Rect(0, 404-ao-ao//2, screenw, 76+ao+ao//2))
             jrf = jrfontnormal
-            if ((slide in ["lr", "cr"]) or (colorbug_started and colorbug_nat)) and ("warnpalbug" in old):
+            if (((slide in ["lr", "cr"]) or (colorbug_started and colorbug_nat)) and ("warnpalbug" in old) and alerting):
                 jrf = jrfontradaralert
             drawshadow(starfont32, crawl, round(screenw-crawlscroll), 403, 3, mono=gmono, char_offsets={}, jr_override=jrf)
             if not alerting:
@@ -2408,11 +2590,11 @@ while working:
         tcl = []
         for i, j in enumerate(time):
             if j == lastlasttime[i]:
-                tcl.append((255, 255, 255))
+                tcl.append(white)
             else:
                 tcl.append((0, 0, 0))
     else:
-        tcl = (255, 255, 255)
+        tcl = white
     
     if (ldlon and not serial) or not ldlmode:
         if not ui or ((slide in ["lr", "cr"]) and not ldlmode):
@@ -2420,11 +2602,13 @@ while working:
         elif ldlmode or textpos >= 2:
             drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3), 375+(ldl_y//2+(4 if textpos == 2 else 0)), 3, mono=gmono, color=tcl)
             drawshadow(smallfont, date.upper(), 60+round((screenw-768)/3), 375+(ldl_y//2+(4 if textpos == 2 else 0)), 3, mono=gmono)
+        elif slide == "oldcc" and not ldlmode and textpos < 2:
+            pass
         elif textpos == 0:
-            drawshadow(smallfont, time.upper(), 479+round((screenw-768)*2/3), 35, 3, mono=gmono, color=tcl)
+            drawshadow(smallfont, time.upper(), 479+round((screenw-768)*2/3)-4, 35, 3, mono=gmono, color=tcl)
             drawshadow(smallfont, date.upper(), 479+round((screenw-768)*2/3), 55, 3, mono=gmono)
         elif textpos == 1:
-            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3), 28, 3, mono=gmono, color=tcl)
+            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3)-4, 28, 3, mono=gmono, color=tcl)
             drawshadow(smallfont, date.upper(), 465+round((screenw-768)*2/3), 48, 3, mono=gmono)
 
     for ext in ext_loaded:
@@ -2453,8 +2637,25 @@ while working:
     lasttime = time + ""
     
     clear_profile()
-    if compress:
-        rwin.blit(pg.transform.smoothscale_by(win, (1/1.2, 1)), (0, 0))
+
+    transform = (1/(1.2 if compress else 1), 1)
+    if (rwin.get_width()/rwin.get_height() > (rwidth/480)): #wider
+        sl = rwin.get_height()/480
+        transform = (sl/(1.2 if compress else 1), sl)
+    elif (rwin.get_width()/rwin.get_height() < (rwidth/480)): #taller
+        sl = rwin.get_width()/rwidth
+        transform = (sl/(1.2 if compress else 1), sl)
+
+    if transform != (1, 1):
+        if smoothscale:
+            tr = pg.transform.smoothscale_by(win, transform)
+        else:
+            tr = pg.transform.scale_by(win, transform)
+    else:
+        tr = win
+
+    rwin.fill((0, 0, 0))
+    rwin.blit(tr, (rwin.get_width()/2-tr.get_width()/2, rwin.get_height()/2-tr.get_height()/2))
     pg.display.flip()
     if outputs:
         avbuffer = win.copy()

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import wx
 import wx.adv
 import subprocess as sp
@@ -5,7 +6,30 @@ import os
 import sys
 import runpy
 import sounddevice as sd
+import requests as r
+import threading as th
 from signal import SIGTERM
+import random
+
+os.chdir(os.path.dirname(os.path.abspath(__file__))) #do this or everything explodes
+
+#did you know?
+#i know i did
+tips = [
+    "You can save your configuration to a separate file for later use!",
+    "The Extra LDL Message appears at the end of the LDL loop, but before any ad crawls.",
+    "FreeStar couldn't be possible without community support! If you find any issues, please report them!",
+    "The Schedule Minutes setting lets you automatically start Local Forecasts at specific times.",
+    "Adding an input URI in Stream I/O will allow overlaying on a feed without a chroma key!",
+    "If you don't set a background for LDL-Only mode, it will use a magenta chroma key!",
+    "FreeStar normally outputs in 8:5 for accuracy. To view it in 4:3, enable \"Compress Window\".",
+    "FreeStar 4k is licensed under the GNU General Public License v3.0!",
+    "You can switch between Release and Unstable builds from the Updates menu.",
+    "The Text Position setting is useful for recreating pre-1993 themes.",
+    "Flavor options let you customize the timing of slides during a Local Forecast!",
+    "You can specify different logos for your main display and radar!",
+    "FreeStar 4000 was originally a Python recreation of ws4k+ before becoming an original project!"
+]
 
 devices = ["Default"]
 devices.extend([e["name"] for e in sd.query_devices() if e["max_output_channels"] > 0])
@@ -31,7 +55,7 @@ class TBIcon(wx.adv.TaskBarIcon):
     def __init__(self, frame):
         wx.adv.TaskBarIcon.__init__(self)
         icon1xi = wx.Icon("launcher/icon_32x32.png", wx.BITMAP_TYPE_PNG)
-        self.SetIcon(icon1xi, 'task bar icon')
+        self.SetIcon(icon1xi, 'FreeStar Launcher')
         self.frame = frame
         self.Bind(wx.EVT_MENU, self.Activate, id=1)
         self.Bind(wx.EVT_MENU, self.Deactivate, id=2)
@@ -62,14 +86,161 @@ class TBIcon(wx.adv.TaskBarIcon):
     def Deactivate(self, event):
         if self.frame.IsShown():
             self.frame.Hide()
+
+def get_changed(from_c, to_c):
+    comp = r.get(f"https://api.github.com/repos/9D-Crew/freestar4k/compare/{from_c}...{to_c}").json()
+    changed = []
+    for f in comp.get("files", []):
+        changed.append({"filename": f["filename"], "status": f["status"], "url": f.get("raw_url")})
+    return changed
+
+def download(url, dst):
+    dr = os.path.dirname(dst)
+    if dr:
+        os.makedirs(dr, exist_ok=True)
+    rq = r.get(url)
+    rq.raise_for_status()
+    with open(dst, "wb") as f:
+        f.write(rq.content)
+
+def do_update(to_c):
+    if not os.path.exists("commit.txt"):
+        return False
+    with open("commit.txt", "r") as f:
+        commit = f.read().strip()
     
+    if commit == to_c:
+        return False  # Already up-to-date
+    changes = get_changed(commit, to_c)
+    
+    for change in changes:
+        status = change["status"]
+        filename = change["filename"]
+
+        if status in ("modified", "added"):
+            download(change["url"], filename)
+        elif status == "removed":
+            if os.path.exists(filename):
+                os.remove(filename)
+    with open("commit.txt", "w") as f:
+        f.write(to_c)
+    return True  # Update successful
+
+def detect():
+    if os.path.exists("main.py"):
+        with open("main.py", "r") as f:
+            try:
+                content = f.read()
+                ix = content.index("set_caption")
+                content = content[ix:]
+                ix = content.index("v")
+                content = content[ix:]
+                ix = content.index("\"")
+                content = content[:ix]
+                content = content.strip()
+                return content
+            except:
+                return
+def check_updates(frame):
+    err = False
+    tags = None
+    commits = None
+    try:
+        tags = r.get("https://api.github.com/repos/9D-Crew/freestar4k/tags").json()
+    except:
+        err = True
+    try:
+        commits = r.get("https://api.github.com/repos/9D-Crew/freestar4k/commits").json()
+    except:
+        err =  True
+    if err:
+        dl = wx.MessageDialog(None, message="Error fetching updates.", caption="Error", style=wx.OK | wx.CENTER | wx.ICON_WARNING)
+        dl.ShowModal()
+        dl.Destroy()
+        return
+    
+    # Store tags and commits in frame for menu handlers
+    frame.tags = tags
+    frame.commits = commits
+    
+    if not os.path.exists("commit.txt"):
+        detection = detect()
+        if detection:
+            #detected!
+            commit = detection
+        else:
+            #assuming latest release
+            commit = tags[0]['name']
+        with open("commit.txt", "w") as f:
+            f.write(commit)
+    else:
+        with open("commit.txt", "r") as f:
+            commit = f.read().strip()
+    
+    if commit.startswith("v"):
+        if commit != tags[0]['name']:
+            frame.showmessage(f"A new update is available! ({tags[0]['name']})", wx.ICON_INFORMATION)
+    else:
+        if commit != commits[0]['sha']:
+            frame.showmessage(f"A new update is available! ({commits[0]['sha'][:8]})", wx.ICON_INFORMATION)
+
+class DidYouKnow(wx.Dialog):
+    def __init__(self, parent=None):
+        super().__init__(parent, title="Fun Fact", size=(400, 200), style=wx.DEFAULT_DIALOG_STYLE | wx.STAY_ON_TOP | wx.DIALOG_EX_METAL)
+        
+        tip = random.choice(tips)
+        
+        panel = wx.Panel(self)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        title_font = wx.Font((30 if sys.platform != "linux" else 20), wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        title = wx.StaticText(panel, label="Did You Know?")
+        title.SetFont(title_font)
+        sizer.Add(title, 0, wx.ALL | wx.ALIGN_LEFT, 10)
+        
+        tip_text = wx.StaticText(panel, label=tip)
+        tip_font = wx.Font(18 if sys.platform != "linux" else 12, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        tip_text.SetFont(tip_font)
+        sizer.Add(tip_text, 1, wx.ALL | wx.EXPAND, 5)
+        #tip_text.Wrap(350)
+        
+        #okay
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ok_btn = wx.Button(panel, wx.ID_OK, "OK")
+        btn_sizer.Add(ok_btn, 0, wx.ALL, 5)
+        sizer.Add(btn_sizer, 0, wx.CENTER | wx.ALL, 5)
+        
+        panel.SetSizer(sizer)
+        
+        self.Bind(wx.EVT_BUTTON, self.on_ok, ok_btn)
+    
+    def on_ok(self, event):
+        self.Destroy()
 
 class Launcher(wx.Frame):
     def __init__(self):
-        super().__init__(parent=None, title="FreeStar 4k Launcher", size=(768, 480))
+        super().__init__(parent=None, title="FreeStar 4k Launcher", size=(810, 540))
+        
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.nb = wx.Notebook(panel)
+        
+        mb = wx.MenuBar()
+        menu = wx.Menu()
+        menu.Append(wx.ID_FILE1, "Switch to &Release", "Selects the release update branch")
+        menu.Append(wx.ID_FILE2, "Switch to &Unstable", "Selects the unstable update branch")
+        mb.Append(menu, "&Updates")
+        self.SetMenuBar(mb)
+        
+        self.Bind(wx.EVT_MENU, self.on_switch_release, id=wx.ID_FILE1)
+        self.Bind(wx.EVT_MENU, self.on_switch_unstable, id=wx.ID_FILE2)
+        
+        self.tags = None
+        self.commits = None
+        
+        self.infobar = wx.InfoBar(panel)
+        self.infobar.AddButton(wx.ID_OK, "Install")
+        self.infobar.AddButton(wx.ID_CLOSE, "Dismiss")
         
         icon05x = wx.Icon("launcher/icon_16x16.png", wx.BITMAP_TYPE_PNG)
         icon1x = wx.Bitmap("launcher/icon_32x32.png", wx.BITMAP_TYPE_PNG)
@@ -105,6 +276,24 @@ class Launcher(wx.Frame):
         pas.Add(tx, 0, wx.ALL, 2)
         pas.Add(self.textpos, 0, wx.ALL, 2)
         tpas.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
+
+        pa = wx.Panel(tpa)
+        pas = wx.BoxSizer(wx.VERTICAL)
+        pa.SetSizer(pas)
+        radarsetting = wx.Choice(pa, choices=["Pre-1999", "Post-1999"])
+        tx = wx.StaticText(pa, label="Radar Type:")
+        pas.Add(tx, 0, wx.ALL, 2)
+        pas.Add(radarsetting, 0, wx.ALL, 2)
+        tpas.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
+        
+        pa = wx.Panel(tpa)
+        pas = wx.BoxSizer(wx.VERTICAL)
+        pa.SetSizer(pas)
+        musicsetting = wx.Choice(pa, choices=["Always", "LF Only"])
+        tx = wx.StaticText(pa, label="Music Mode:")
+        pas.Add(tx, 0, wx.ALL, 2)
+        pas.Add(musicsetting, 0, wx.ALL, 2)
+        tpas.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
         
         pth = ""
         if conf_exist:
@@ -120,15 +309,18 @@ class Launcher(wx.Frame):
         
         p1s.Add(tpa, 0, wx.ALL | wx.EXPAND, 2)
         
-        
         pa2 = wx.Panel(page1)
         pa2s = wx.BoxSizer(wx.HORIZONTAL)
         pa2.SetSizer(pa2s)
         
         if not conf_exist:
             self.textpos.SetSelection(0)
+            radarsetting.SetSelection(0)
+            musicsetting.SetSelection(0)
         else:
             self.textpos.SetSelection(existing_conf.get("textpos", 0))
+            radarsetting.SetSelection(existing_conf.get("radarsetting", 0))
+            musicsetting.SetSelection(existing_conf.get("musicsetting", 0))
         self.flags = wx.CheckListBox(pa2, choices=[
             "More Uppercase Text",
             "Time Draw Delay",
@@ -139,7 +331,9 @@ class Launcher(wx.Frame):
             "Old Titles",
             "Alert Crawl Palette Bug",
             "Older Almanac Banner",
-            "Uppercase Almanac AM/PM"
+            "Uppercase Almanac AM/PM",
+            "Old CC Full-Width Banner",
+            "White Extended Forecast Days"
         ])
         
         pa2s.Add(self.flags, 1, wx.ALL | wx.EXPAND)
@@ -167,16 +361,23 @@ class Launcher(wx.Frame):
                 set_flags.append(8)
             if "uppercaseAMPM" in flg:
                 set_flags.append(9)
+            if "fullOldCC" in flg:
+                set_flags.append(10)
+            if "whiteXF" in flg:
+                set_flags.append(11)
             self.flags.SetCheckedItems(set_flags)
         
         top = wx.Panel(panel)
         info_bitmap = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE, wx.ART_MENU, wx.Size(32, 32))
         info2_bitmap = wx.ArtProvider.GetBitmap(wx.ART_FILE_SAVE_AS, wx.ART_MENU, wx.Size(32, 32))
+        info3_bitmap = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_MENU, wx.Size(32, 32))
         menu1 = wx.BitmapButton(top, bitmap=info_bitmap, pos=(5, 5))
         menu1b = wx.BitmapButton(top, bitmap=info2_bitmap, pos=(menu1.GetClientSize()[0] + 10, 5))
-        menu2 = wx.BitmapButton(top, bitmap=icon1x, pos=(menu1.GetClientSize()[0]*2 + 15, 5))
+        menu1c = wx.BitmapButton(top, bitmap=info3_bitmap, pos=(menu1.GetClientSize()[0]*2 + 15, 5))
+        menu2 = wx.BitmapButton(top, bitmap=icon1x, pos=(menu1.GetClientSize()[0]*3 + 20, 5))
         menu1.SetToolTip(wx.ToolTip("Save Configuration"))
         menu1b.SetToolTip(wx.ToolTip("Save Configuration As..."))
+        menu1c.SetToolTip(wx.ToolTip("Load Configuration"))
         menu2.SetToolTip(wx.ToolTip("Start Simulator"))
         
         page2 = wx.Panel(self.nb)
@@ -199,7 +400,7 @@ class Launcher(wx.Frame):
         paa = wx.Panel(pa)
         paas = wx.BoxSizer(wx.VERTICAL)
         paa.SetSizer(paas)
-        paas.Add(wx.StaticText(paa, label="Mesonet Product ID (e.g. CLIJFK):"), 0, wx.ALL, 2)
+        paas.Add(wx.StaticText(paa, label="NWS Climate PIL (e.g. CLIJFK):"), 0, wx.ALL, 2)
         mesoid = wx.TextCtrl(paa)
         paas.Add(mesoid, 0, wx.ALL | wx.EXPAND, 2)
         pas.Add(paa, 1, wx.ALL | wx.EXPAND, 2)
@@ -348,7 +549,7 @@ class Launcher(wx.Frame):
         pas = wx.BoxSizer(wx.HORIZONTAL)
         pa.SetSizer(pas)
         loclab = wx.StaticText(pa, label="Location Search Name")
-        namelab = wx.StaticText(pa, label="Display Name (≤14 characters suggested)")
+        namelab = wx.StaticText(pa, label="Display Name (≤14 characters)")
         pas.Add(loclab, 1, wx.ALL | wx.EXPAND, 2)
         pas.Add(namelab, 1, wx.ALL | wx.EXPAND, 2)
         p3sizer.Add(pa, 0, wx.ALL | wx.EXPAND, 2)
@@ -358,6 +559,7 @@ class Launcher(wx.Frame):
             pa.SetSizer(pas)
             locent = wx.TextCtrl(pa, pos=(20, 20+25*i))
             nameent = wx.TextCtrl(pa, pos=(20, 20+25*i))
+            nameent.SetMaxLength(14)
             
             if i < len(obslocs):
                 locent.SetValue(obslocs[i][0])
@@ -372,8 +574,11 @@ class Launcher(wx.Frame):
             pas.Add(nameent, 1, wx.ALL | wx.EXPAND, 2)
             p3sizer.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
 
+        lsort = wx.Choice(page3, choices=["Don't Sort", "Sort Alphabetically"])
+        p3sizer.Add(lsort, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 2)
+
         #page4 = wx.Panel(self.nb)
-        
+        lsort.SetSelection(existing_conf.get("lsort", 0))
         
         page5 = wx.Panel(self.nb)
         sizer2 = wx.GridSizer(2, 0, 0)
@@ -389,8 +594,12 @@ class Launcher(wx.Frame):
             "lf": "36-Hour Forecast",
             "xf": "Extended Forecast",
             "lr": "Local Radar",
+            "cr": "Current Radar",
             "al": "Almanac",
-            "ol": "Outlook"
+            "ol": "Outlook",
+            "sf": "School Forecast (Custom)",
+            "df": "Daypart Forecast (Custom)",
+            "intro": "Intro (Custom)"
         }
         items = ["Current Conditions - 10.0 secs.", "Latest Observations - 10.0 secs.", "36-Hour Forecast - 10.0 secs.", "Local Radar - 10.0 secs."]
         if conf_exist and "flavor" in existing_conf:
@@ -482,9 +691,25 @@ class Launcher(wx.Frame):
         
         btnpanel.SetSizer(btnsizer)
         sizer3.Add(flavorcont, 1, wx.EXPAND | wx.ALL, 5)
+
+        lenlabel = wx.StaticText(page5, label="Total Length: ")
+        sizer3.Add(lenlabel, 0, wx.ALIGN_CENTER)
         sizer3.Add(btnpanel, 0, wx.ALIGN_CENTER)
-        self.flavori = wx.Choicebook(flavorcont) #flavori: list of slides that can be added
         
+        self.flavori = wx.Choicebook(flavorcont) #flavori: list of slides that can be added
+        def evalLength():
+            strings = self.flavorl.GetStrings()
+            length = 0
+            for s in strings:
+                s2 = s.split("-")
+                tm = float(s2[-1].strip().split(" ")[0])
+                if "Daypart" in s2[0] or "36" in s2[0]:
+                    length += tm*3
+                else:
+                    length += tm
+            lenlabel.SetLabel(f"Total Length: {length} seconds")
+            return length
+        evalLength()
         def moveUp(event):
             self.flavorl.MoveCurrentUp()
         def moveDown(event):
@@ -495,10 +720,12 @@ class Launcher(wx.Frame):
                 slide_name = self.flavori.GetPageText(idx)
                 self.flavorl.Append(f"{slide_name} - {spincts[slide_name].GetValue()} secs.")
                 self.flavorl.Check(len(self.flavorl.GetItems())-1)
+                evalLength()
         def delSlide(event):
             idx = self.flavorl.GetSelection()
             if idx != wx.NOT_FOUND:
                 self.flavorl.Delete(idx)
+                evalLength()
         def repSlide(event):
             idx = self.flavorl.GetSelection()
             if idx != wx.NOT_FOUND:
@@ -511,6 +738,7 @@ class Launcher(wx.Frame):
                     self.flavorl.SetItems(items)
                     self.flavorl.SetSelection(idx)
                     self.flavorl.SetCheckedItems(chi)
+                    evalLength()
         btnpanel.Bind(wx.EVT_BUTTON, moveUp, up_btn)
         btnpanel.Bind(wx.EVT_BUTTON, moveDown, down_btn)
         btnpanel.Bind(wx.EVT_BUTTON, addSlide, add_btn)
@@ -561,7 +789,11 @@ class Launcher(wx.Frame):
         addPageSelector("Extended Forecast", "xf", "Shows conditions for three upcoming days..")
         addPageSelector("Almanac", "al", "Shows moon, sun, and temperature information.")
         addPageSelector("Outlook", "ol", "Predicts trends for the next 30 days.")
-        addPageSelector("Local Radar", "lr", "Shows an animated radar view.")
+        addPageSelector("Local Radar", "lr", "Shows an animated radar for the last 90 minutes.")
+        addPageSelector("Current Radar", "cr", "Shows a static radar image.")
+        addPageSelector("Intro (Custom)", "intro", "Introductory slide. Place messages in introtext.txt")
+        addPageSelector("School Forecast (Custom)", "sf", "Hourly conditions for popular school start/end times.")
+        addPageSelector("Daypart Forecast (Custom)", "df", "Daypart conditions for the next 6 days.\nSlide length applies per page.")
 
         page6 = wx.Panel(self.nb)
         p6sizer = wx.BoxSizer(wx.VERTICAL)
@@ -663,6 +895,7 @@ class Launcher(wx.Frame):
         compress = wx.CheckBox(pa, label="Compress Window")
         compress.SetToolTip(wx.ToolTip("Compresses the window horizontally to match the expected aspect ratio. Normally, it is wider by a factor of 1.2x to match the actual 4000 framebuffer size."))
         noaudio = wx.CheckBox(pa, label="Mute Audio")
+        smoothscale = wx.CheckBox(pa, label="Smooth Scale")
         pas.Add(metric, 0, wx.ALL, 2)
         pas.AddStretchSpacer()
         pas.Add(borderless, 0, wx.ALL, 2)
@@ -672,6 +905,8 @@ class Launcher(wx.Frame):
         pas.Add(widescreen, 0, wx.ALL, 2)
         pas.AddStretchSpacer()
         pas.Add(noaudio, 0, wx.ALL, 2)
+        pas.AddStretchSpacer()
+        pas.Add(smoothscale, 0, wx.ALL, 2)
         p8sizer.Add(pa, 0, wx.ALL | wx.EXPAND, 2)
         
         p8sizer.Add(wx.StaticText(page8, label="Extensions:"), 0, wx.ALL | wx.EXPAND, 4)
@@ -687,7 +922,9 @@ class Launcher(wx.Frame):
             widescreen.SetValue(existing_conf.get("widescreen", False))
             noaudio.SetValue(existing_conf.get("mute", False))
             compress.SetValue(existing_conf.get("compress", False))
+            smoothscale.SetValue(existing_conf.get("smoothscale", True))
         
+        #be careful, i heard that getconfig bytes.
         def getconfig():
             items = []
             items.append(("textpos", self.textpos.GetSelection()))
@@ -704,6 +941,8 @@ class Launcher(wx.Frame):
             if 7 in flg: misc.add("warnpalbug")
             if 8 in flg: misc.add("oldal")
             if 9 in flg: misc.add("uppercaseAMPM")
+            if 10 in flg: misc.add("fullOldCC")
+            if 11 in flg: misc.add("whiteXF")
 
             items.append(("mainloc", str(mainloc.GetValue())))
             items.append(("mainloc2", str(mainloc2.GetValue())))
@@ -743,6 +982,10 @@ class Launcher(wx.Frame):
             items.append(("widescreen", widescreen.GetValue()))
             items.append(("mute", noaudio.GetValue()))
             items.append(("compress", compress.GetValue()))
+            items.append(("radarsetting", radarsetting.GetSelection()))
+            items.append(("lsort", lsort.GetSelection()))
+            items.append(("smoothscale", smoothscale.GetValue()))
+            items.append(("musicsetting", musicsetting.GetSelection()))
             iv = ins.GetValue()
             try:
                 iv = int(iv)
@@ -757,8 +1000,12 @@ class Launcher(wx.Frame):
                 "36-Hour Forecast": "lf",
                 "Extended Forecast": "xf",
                 "Local Radar": "lr",
+                "Current Radar": "cr",
                 "Almanac": "al",
-                "Outlook": "ol"
+                "Outlook": "ol",
+                "School Forecast (Custom)": "sf",
+                "Daypart Forecast (Custom)": "df",
+                "Intro (Custom)": "intro"
             }
             pages = []
             times = []
@@ -788,7 +1035,7 @@ class Launcher(wx.Frame):
                 f.write(getconfig())
         
         def save_as(event):
-            dialog = wx.FileDialog(panel, "Save to file:", "./configs", "config.txt", "Text (*.txt)|*.txt", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+            dialog = wx.FileDialog(panel, "Save to file", "./configs", "config.txt", "Text (*.txt)|*.txt", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
             if (dialog.ShowModal() == wx.ID_OK):
                 filename = dialog.GetFilename()
                 dirname = dialog.GetDirectory()
@@ -804,8 +1051,33 @@ class Launcher(wx.Frame):
                     sub = sp.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")])
             else:
                 sub = sp.Popen([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")])
+
+        dyk = DidYouKnow()
+        def load(event):
+            dialog = wx.FileDialog(panel, "Load file", "./configs", "config.txt", "Text (*.txt)|*.txt", wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+            if (dialog.ShowModal() == wx.ID_OK):
+                filename = dialog.GetFilename()
+                dirname = dialog.GetDirectory()
+                f = open(os.path.join(dirname, filename), "r")
+                f2 = open("conf.py", "w")
+                f2.write(f.read())
+                f.close()
+                f2.close()
+                md = wx.MessageDialog(panel, "The launcher must be restarted for changes to take effect.", "Restart", wx.OK | wx.ICON_NONE)
+                md.ShowModal()
+                md.Destroy()
+                try:
+                    dyk.Destroy()
+                except:
+                    pass
+                dialog.Destroy()
+                self.Destroy()
+            else:
+                dialog.Destroy()
+        
         panel.Bind(wx.EVT_BUTTON, save, menu1)
         panel.Bind(wx.EVT_BUTTON, save_as, menu1b)
+        panel.Bind(wx.EVT_BUTTON, load, menu1c)
         panel.Bind(wx.EVT_BUTTON, launch, menu2)
         
         sizer2.Add(self.flavorl, 0, wx.EXPAND, 0)
@@ -814,7 +1086,7 @@ class Launcher(wx.Frame):
         
         about = wx.Panel(self.nb)
         aboutsizer = wx.BoxSizer(wx.VERTICAL)
-        abouttext = wx.StaticText(about, label="FreeStar 4k Launcher\nVersion 1.0.2", style=wx.ALIGN_CENTER)
+        abouttext = wx.StaticText(about, label="FreeStar 4k Launcher\nVersion 1.1", style=wx.ALIGN_CENTER)
         logo = wx.StaticBitmap(about, bitmap=wx.Bitmap("launcher/icon_128x128.png", wx.BITMAP_TYPE_PNG))
         abouttext2 = wx.StaticText(about, label="Developed by 9D Crew\nA special thanks to COLSTER for helping with gathering STAR fonts!\nThanks to Nick S. and Malek Masoud for creating the icons used by this simulator.\nThanks to Bill Goodwill for contributing to The Weather Channel community by creating the WS4000 simulator.\nIf you are Bill Goodwill, creator of the WS4000 Simulator, please do not use FreeStar simulators.\nThis program is licensed under the GNU General Public License v3.0.\nFor questions, visit https://freestar.lewolfyt.cc/", style=wx.ALIGN_CENTER)
         aboutsizer.Add(abouttext, 0, wx.ALL | wx.ALIGN_CENTER, 10)
@@ -835,16 +1107,79 @@ class Launcher(wx.Frame):
         sizer.Add(top, 0, wx.EXPAND, 0)
         sizer.Add(self.nb, 1, wx.ALL | wx.EXPAND, 5)
         
+        sizer.Add(self.infobar, wx.SizerFlags().Expand())
+        
         panel.SetSizer(sizer)
         
         self.Show()
         self.SetIcons(ib)
         tbi = wx.adv.TaskBarIcon(wx.adv.TBI_DOCK)
         tbi.SetIcon(icon2x)
+        
+        dyk.Show()
+        dyk.Raise() #put this window on top
+    def showmessage(self, msg, flags):
+        wx.CallAfter(self.infobar.ShowMessage, msg, flags)
+    
+    def on_switch_release(self, event):
+        if not self.tags:
+            wx.MessageBox("Unable to fetch release info. Please check your internet connection.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        
+        with open("commit.txt", "r") as f:
+            commit = f.read().strip()
+        
+        if commit == self.tags[0]['name']:
+            wx.MessageBox("Already on the latest release.", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+        
+        dlg = wx.MessageDialog(None, 
+                               message=f"Download and install release {self.tags[0]['name']}?\n\nWARNING: Any modifications made to FreeStar's files will be removed.",
+                               caption="Confirm Update",
+                               style=wx.YES_NO | wx.ICON_QUESTION)
+        if dlg.ShowModal() == wx.ID_YES:
+            try:
+                success = do_update(self.tags[0]['name'])
+                if success:
+                    wx.MessageBox(f"Successfully updated to {self.tags[0]['name']}!", "Success", wx.OK | wx.ICON_INFORMATION)
+                else:
+                    wx.MessageBox("Already up-to-date.", "Info", wx.OK | wx.ICON_INFORMATION)
+            except Exception as e:
+                wx.MessageBox(f"Update failed: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        dlg.Destroy()
+    
+    def on_switch_unstable(self, event):
+        if not self.commits:
+            wx.MessageBox("Unable to fetch unstable info. Please check your internet connection.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+        
+        with open("commit.txt", "r") as f:
+            commit = f.read().strip()
+        
+        target_sha = self.commits[0]['sha']
+        if commit == target_sha:
+            wx.MessageBox("Already on the latest unstable commit.", "Info", wx.OK | wx.ICON_INFORMATION)
+            return
+        
+        dlg = wx.MessageDialog(None,
+                               message=f"Download and install unstable commit {target_sha[:8]}?\n\nWARNING: Any modifications made to FreeStar's files will be removed.\nUnstable builds may be buggy!",
+                               caption="Confirm Update",
+                               style=wx.YES_NO | wx.ICON_QUESTION)
+        if dlg.ShowModal() == wx.ID_YES:
+            try:
+                success = do_update(target_sha)
+                if success:
+                    wx.MessageBox(f"Successfully updated to {target_sha[:8]}!", "Success", wx.OK | wx.ICON_INFORMATION)
+                else:
+                    wx.MessageBox("Already up-to-date.", "Info", wx.OK | wx.ICON_INFORMATION)
+            except Exception as e:
+                wx.MessageBox(f"Update failed: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
+        dlg.Destroy()
 
 if __name__ == '__main__':
     app = wx.App()
     frame = Launcher()
+    th.Thread(target=check_updates, args=(frame,)).start()
     frame.Show(True)
     app.SetTopWindow(frame)
     app.MainLoop()

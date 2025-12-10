@@ -3,3 +3,5 @@ wxPython
 sounddevice
 requests
 ephem
+opencv-python
+av

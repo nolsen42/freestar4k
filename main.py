@@ -10,7 +10,7 @@ import requests as r
 from io import BytesIO
 import runpy
 
-VERSION = "1.1"
+VERSION = "1.1.2"
 
 audiorate = 44100
 widescreen = False
@@ -904,10 +904,25 @@ char_offsets_default = {
 }
 
 def shorten_phrase(phrase : str):
-    if "Showers" in phrase and phrase != "Showers":
-        return phrase.replace("Showers", "Shw").replace("Snow Shw", "Hvy Snow")
-    if "Shower" in phrase and phrase != "Shower" and phrase != "Showers":
-        return phrase.replace("Shower", "Shw").replace("Rain Shw", "Hvy Rain")
+    if len(phrase) < 9:
+        return phrase
+    replacelist = {"Ice Crystals": "Ice"}
+    if phrase in replacelist:
+        return replacelist[phrase]
+    if "Shower" in phrase:
+        t = phrase.replace("Shower", "Shwr")
+        if len(t) < 9:
+            return t
+        t = phrase.replace("Showers", "Shwr")
+        if len(t) < 9:
+            return t
+        t = phrase.replace("Shower", "Shw")
+        if len(t) < 9:
+            return t.replace("Snow Shw", "Hvy Snow").replace("Rain Shw", "Hvy Rain")
+        t = phrase.replace("Showers", "Shw")
+        if len(t) < 9:
+            return t.replace("Snow Shw", "Hvy Snow").replace("Rain Shw", "Hvy Rain")
+        return phrase.replace("Showers", "Shw")
     if "Light" in phrase:
         return phrase.replace("Light", "Lgt")
     if "Cldy" in phrase:
@@ -2415,6 +2430,9 @@ while working:
         crawling = True
     if ldlon and ldlmode:
         colorbug_started = False
+    #here for testing
+    #pg.draw.rect(win, (187, 17, 0), pg.Rect(0, 404, screenw, 76))
+    ldl_y_off = -2
     if (ldlon and not serial) or not ldlmode or alerting:
         if serial:
             drawshadow(smallfont, "SN: 000000v1.0 SW:00000000 DQ:100", 78, 402.5-8, 3, mono=gmono, char_offsets={})
@@ -2516,7 +2534,7 @@ while working:
                 ldltext = drawing(ldltext, ldldrawidx)
             profiling_end("ops")
             if ui and ooo:
-                drawshadow(starfont32, ldltext, 78+txoff-ldlextra*18, 403, 3, mono=gmono, char_offsets={})
+                drawshadow(starfont32, ldltext, 78+txoff-ldlextra*18, 403+ldl_y_off, 3, mono=gmono, char_offsets={})
             nextcrawlready = True
             
             ldlinterval -= delta*seconds
@@ -2550,7 +2568,7 @@ while working:
             jrf = jrfontnormal
             if (((slide in ["lr", "cr"]) or (colorbug_started and colorbug_nat)) and ("warnpalbug" in old) and alerting):
                 jrf = jrfontradaralert
-            drawshadow(starfont32, crawl, round(screenw-crawlscroll), 403, 3, mono=gmono, char_offsets={}, jr_override=jrf)
+            drawshadow(starfont32, crawl, round(screenw-crawlscroll), 403+ldl_y_off, 3, mono=gmono, char_offsets={}, jr_override=jrf)
             if not alerting:
                 crawltime -= delta*seconds
             if crawlscroll >= (screenw+(len(crawl)+4)*(gmono if not jr else m.floor(gmono))):
@@ -2600,16 +2618,16 @@ while working:
         if not ui or ((slide in ["lr", "cr"]) and not ldlmode):
             pass
         elif ldlmode or textpos >= 2:
-            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3), 375+(ldl_y//2+(4 if textpos == 2 else 0)), 3, mono=gmono, color=tcl)
-            drawshadow(smallfont, date.upper(), 60+round((screenw-768)/3), 375+(ldl_y//2+(4 if textpos == 2 else 0)), 3, mono=gmono)
+            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3), 375+(ldl_y//2+(4 if textpos == 2 or ldlmode else 0)), 3, mono=gmono, color=tcl, char_offsets={})
+            drawshadow(smallfont, date.upper(), 60+round((screenw-768)/3), 375+(ldl_y//2+(4 if textpos == 2 or ldlmode else 0)), 3, mono=gmono, char_offsets={})
         elif slide == "oldcc" and not ldlmode and textpos < 2:
             pass
         elif textpos == 0:
-            drawshadow(smallfont, time.upper(), 479+round((screenw-768)*2/3)-4, 35, 3, mono=gmono, color=tcl)
-            drawshadow(smallfont, date.upper(), 479+round((screenw-768)*2/3), 55, 3, mono=gmono)
+            drawshadow(smallfont, time.upper(), 479+round((screenw-768)*2/3)-4, 35, 3, mono=gmono, color=tcl, char_offsets={})
+            drawshadow(smallfont, date.upper(), 479+round((screenw-768)*2/3), 55, 3, mono=gmono, char_offsets={})
         elif textpos == 1:
-            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3)-4, 28, 3, mono=gmono, color=tcl)
-            drawshadow(smallfont, date.upper(), 465+round((screenw-768)*2/3), 48, 3, mono=gmono)
+            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3)-4, 28, 3, mono=gmono, color=tcl, char_offsets={})
+            drawshadow(smallfont, date.upper(), 465+round((screenw-768)*2/3), 48, 3, mono=gmono, char_offsets={})
 
     for ext in ext_loaded:
         if 'post_draw' in ext:

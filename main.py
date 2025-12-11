@@ -116,6 +116,8 @@ vencoder = "libx264"
 
 mute = False
 
+crawllen = 40
+
 try:
     import conf
     #you can sorta tell what order we implemented these in
@@ -171,6 +173,7 @@ try:
     radarsetting = getattr(conf, "radarsetting", False)
     lfmusic = getattr(conf, "musicsetting", 0)
     smoothscale = getattr(conf, "smoothscale", True)
+    crawllen = getattr(conf, "crawllen", 40)
 except ModuleNotFoundError:
     print("Configuration not found! Try saving your configuration again.")
     exit(1)
@@ -192,13 +195,9 @@ short_dist = ["ft.", "m."][metric]
 if sockets:
     import socket
     import os
-    server_addr = f"/tmp/freestar4k"
-    try:
-        os.unlink(server_addr)
-    except OSError:
-        if os.path.exists(server_addr):
-            raise
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server_addr = ("127.0.0.1", 4000)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 screenw = 768 if not widescreen else 1024
 
@@ -437,7 +436,7 @@ def draw_bg(top_offset=0, bh_offset=0, all_offset=0, special=None, box=True):
     
     pg.draw.rect(win, ldl_c, pg.Rect(0, 400-all_offset-bh_offset, screenw, 80+all_offset+bh_offset))
     pg.draw.rect(win, (33, 26, 20), pg.Rect(0, 400-all_offset-bh_offset, screenw, 2))
-    pg.draw.rect(win, (230, 230, 230), pg.Rect(0, 402-all_offset-bh_offset, screenw, 2))
+    pg.draw.rect(win, (120, 120, 222), pg.Rect(0, 402-all_offset-bh_offset, screenw, 2))
     
     pg.draw.rect(win, outer_c, pg.Rect(0, 0-all_offset, screenw, 90))
     pg.draw.rect(win, ban_c[0], pg.Rect(0, 30-all_offset, screenw, 9))
@@ -670,6 +669,34 @@ def sign(n):
 
 dficons = [[] for _ in range(12)]
 
+#commercial pre-roll, commercial on-air, unused, warning, unused
+switches = [False, False, False, False, False] #this emulates the 4000's logic switches. why? as baldi once said, historicality
+#warning is the only one of these i can actually control :wilted_flower:
+
+#i'd take a deep breath here but i don't need to because i'm typing this :D
+#in order:
+
+#satellite video, (green)
+#satellite data, (green)
+#local video, (green)
+#not assigned, (green)
+#commercial pre-roll, (amber)
+#commercial on-air, (amber)
+#modem in-use, (amber)
+#not assigned, (red)
+#not assigned, (red)
+#system error, (red)
+#ring indicator, (green)
+#carrier detect, (green)
+#charging indicator (red)
+leds = [False, False, False, False, False, False, False, False, False, False, False, sockets, True]
+
+connections = []
+
+def sendtoall(data):
+    for connection in connections:
+        connsendall(connection, data)
+
 def getdata():
     ix = 0
     global wxdata
@@ -678,12 +705,15 @@ def getdata():
     global mainicon, ldllficon
     global radardata
     global aldata
+    global leds
     datagot = False
     
     while True:
         if datagot:
             ix += 1
             ix %= 60
+        leds[6] = True
+        sendtoall(f"led 6 1\n".encode())
         try:
             wxdata = r.get(f"https://wx.lewolfyt.cc/?loc={loc}"+("" if not metric else "&units=m")+"&extendeddays=10").json()
 
@@ -728,7 +758,7 @@ def getdata():
                     for fr, ftime in xficon:
                         ficon.append((fr.convert_alpha(), ftime))
                 xficons[i] = ficon
-            
+            leds[1] = True
         except:
             print(tb.format_exc())
         
@@ -786,6 +816,7 @@ def getdata():
             
             clidata = {"month_precip": section, "temp_outlook": dev1*sign(ts), "precip_outlook": dev2*sign(rs)}
             datagot = True
+            leds[1] = True
         except:
             print(tb.format_exc())
         if "al" in flavor:
@@ -811,12 +842,16 @@ def getdata():
                     "sunrise2": int(sr2["sunrise"]),
                     "sunset2": int(sr2["sunset"])
                 }
-            
-        for l in obsloc:
+
+        def get_obsloc(l):
+            global leds
             try:
                 l[2] = r.get(f"https://wx.lewolfyt.cc/?loc={l[0]}"+("" if not metric else "&units=m")).json()
+                leds[1] = True
             except:
                 print(tb.format_exc())
+        for l in obsloc:
+            th.Thread(target=get_obsloc, args=(l,)).start()
         
         if "lr" in flavor:
             try:
@@ -834,6 +869,7 @@ def getdata():
                         r2.blit(rad, (0, 0), pg.Rect(x, y, screenw//2, 240))
                         radardata2.append((pg.transform.scale_by(r2, (2, 2)), t))
                     radardata = radardata2
+                leds[1] = True
             except:
                 print(tb.format_exc())
         elif "cr" in flavor:
@@ -851,8 +887,11 @@ def getdata():
                     r2.blit(radardt, (0, 0), pg.Rect(x, y, screenw//2, 240))
                     radardata2.append((pg.transform.scale_by(r2, (2, 2)), 0))
                     radardata = radardata2
+                leds[1] = True
             except:
                 print(tb.format_exc())
+        leds[6] = False
+        sendtoall(f"led 6 0\n".encode())
         for i in range(300):
             tm.sleep(1)
 th.Thread(target=getdata, daemon=True).start()
@@ -1170,18 +1209,20 @@ bbox = (-127.680, 21.649, -66.507, 50.434)
 mappoint1 = [(bbox[3], bbox[0]), (-screenw//4, -120)]
 mappoint2 = [(bbox[1], bbox[2]), (4100-screenw//4, 1920-120)]
 
+def connsendall(conn, data):
+    try:
+        conn.sendall(data)
+    except BrokenPipeError:
+        pass
+
 if sockets and sock:
-    def connsendall(conn, data):
-        try:
-            conn.sendall(data)
-        except BrokenPipeError:
-            pass
     def socket_handler():
         sock.bind(server_addr)
         sock.listen(1)
-        global ldlmode, ldlon, ldlreps, ldlidx
+        global ldlmode, ldlon, ldlreps, ldlidx, switches, connections, leds
         while True:
             conn, addr = sock.accept()
+            connections.append(conn)
             try:
                 while True:
                     data = conn.recv(1024)
@@ -1225,18 +1266,22 @@ if sockets and sock:
                         elif args[0] == "status":
                             status = ""
                             status += f"ldlmode {'ON' if ldlmode else 'OFF'}\n"
-                            status += f"ldl {'ON' if ldlon else 'OFF'}"
+                            status += f"ldl {'ON' if ldlon else 'OFF'}\n"
                             status += f"feed {'ON' if ldlfeed else 'OFF'}\n"
                             status += f"crawltime {crawlinterval}\n"
                             status += f"crawlidx {crawlactive}\n"
                             status += f"wxdata {'OK' if wxdata else 'NONE'}\n"
                             status += f"clidata {'OK' if clidata else 'NONE'}\n"
-                            status += "statusend\n"
                             lfct = 0
                             for l in obsloc:
                                 if l[2]:
                                     lfct += 1
                             status += f"lfdata {lfct}/{len(obsloc)}\n"
+                            switchest = "".join([["0", "1"][e] for e in switches])
+                            status += f"switches {switchest}\n"
+                            ledst = "".join([["0", "1"][e] for e in leds])
+                            status += f"leds {ledst}\n"
+                            status += "statusend\n"
                             connsendall(conn, status.encode())
                         elif dt.strip() == "":
                             continue
@@ -1247,6 +1292,7 @@ if sockets and sock:
                         break
             finally:
                 conn.close()
+                connections.remove(conn)
     th.Thread(target=socket_handler, daemon=True).start()
 
 gmono = 18.15
@@ -1544,6 +1590,7 @@ def omnomnomimeatingtheframes():
 def docapture():
     global vidcap
     global ffps
+    global leds
     if ldlfeedactive:
         vidcap = cv2.VideoCapture(ldlfeed)
         if not vidcap.isOpened():
@@ -1559,9 +1606,15 @@ def docapture():
             ret, frame = vidcap.read()
             fps = vidcap.get(cv2.CAP_PROP_FPS)
             ffps = fps
+            if not leds[0]:
+                leds[0] = True
+                sendtoall(f"led 0 1\n".encode())
         else:
             ret = False
             fps = 0
+            if leds[0]:
+                leds[0] = False
+                sendtoall(f"led 0 0\n".encode())
         if fps == 0:
             tm.sleep(0.01)
             continue
@@ -2408,7 +2461,7 @@ while working:
             dr = generaldrawidx*1
             it = f"Hello, {locname}!"
             tx, dr = drawing(it, dr, True)
-            drawshadow(largefont32, tx, 98+txoff, 109+linespacing/2+ldl_y, 3, mono=gmono)
+            drawshadow(largefont32, tx, 98+txoff, 109+linespacing/2+ldl_y, 3, mono=20)
             
             for i, line in enumerate(wraptext(introtx, 30)):
                 tx, dr = drawing(line, dr, True)
@@ -2424,6 +2477,10 @@ while working:
     if not alerting:
         al1 = True
     alerting = (len(alertdata[1]) > 0)
+    if alerting != switches[3]:
+        switches[3] = alerting
+        sendtoall(f"switch 3 {int(alerting)}\n".encode())
+        
     if al1 and alerting and not mute:
         beepch.play(beep)
     if alerting:
@@ -2582,7 +2639,7 @@ while working:
                     ldlidx = 0
                     ldldrawidx = 100
             if crawltime <= 0:
-                crawltime = 40*seconds
+                crawltime = crawllen*seconds
                 crawling = False
                 nextcrawlready = True
     
@@ -2623,10 +2680,10 @@ while working:
         elif slide == "oldcc" and not ldlmode and textpos < 2:
             pass
         elif textpos == 0:
-            drawshadow(smallfont, time.upper(), 479+round((screenw-768)*2/3)-4, 35, 3, mono=gmono, color=tcl, char_offsets={})
+            drawshadow(smallfont, time.upper(), 479+round((screenw-768)*2/3)-2, 35, 3, mono=gmono, color=tcl, char_offsets={})
             drawshadow(smallfont, date.upper(), 479+round((screenw-768)*2/3), 55, 3, mono=gmono, char_offsets={})
         elif textpos == 1:
-            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3)-4, 28, 3, mono=gmono, color=tcl, char_offsets={})
+            drawshadow(smallfont, time.upper(), 465+round((screenw-768)*2/3)-2, 28, 3, mono=gmono, color=tcl, char_offsets={})
             drawshadow(smallfont, date.upper(), 465+round((screenw-768)*2/3), 48, 3, mono=gmono, char_offsets={})
 
     for ext in ext_loaded:

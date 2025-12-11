@@ -29,7 +29,8 @@ tips = [
     "The Text Position setting is useful for recreating pre-1993 themes.",
     "Flavor options let you customize the timing of slides during a Local Forecast!",
     "You can specify different logos for your main display and radar!",
-    "FreeStar 4000 was originally a Python recreation of ws4k+ before becoming an original project!"
+    "FreeStar 4000 was originally a Python recreation of ws4k+ before becoming an original project!",
+    "Mow" #GET OUT OF MY HEAD GET OUT OF MY HEAD GET OUT OF MY HEAD
 ]
 
 devices = ["Default"]
@@ -460,7 +461,7 @@ class Launcher(wx.Frame):
         nat = wx.CheckBox(pa, label="Local Forecast LDL Product")
         nat.SetToolTip(wx.ToolTip("If enabled, the LDL will show the little-known Local Forecast over National product."))
         socket = wx.CheckBox(pa, label="Socket Communication")
-        socket.SetToolTip(wx.ToolTip("Allows other programs to communicate with FreeStar to do things such as cue Local Forecasts. Enabling this is the only way to cue the feed LDL if Repeat LDL Forever is disabled."))
+        socket.SetToolTip(wx.ToolTip("Allows other programs to communicate with FreeStar to do things such as cue Local Forecasts. Enabling this is the only way to cue the national LDL if Repeat LDL Forever is disabled."))
 
         paa = wx.Panel(pa)
         paas = wx.BoxSizer(wx.HORIZONTAL)
@@ -546,21 +547,30 @@ class Launcher(wx.Frame):
         obslocs = []
         if conf_exist:
             obslocs = existing_conf.get("obsloc", [])
+        reglocs = []
         obsloc = []
         obsname = []
+        regloc = []
+        regname = []
         page3 = wx.Panel(self.nb)
         p3sizer = wx.BoxSizer(wx.VERTICAL)
         page3.SetSizer(p3sizer)
-        pa = wx.Panel(page3)
+
+        page3nb = wx.Notebook(page3)
+
+        page3p1 = wx.Panel(page3nb)
+        p3p1sizer = wx.BoxSizer(wx.VERTICAL)
+        page3p1.SetSizer(p3p1sizer)
+        pa = wx.Panel(page3p1)
         pas = wx.BoxSizer(wx.HORIZONTAL)
         pa.SetSizer(pas)
         loclab = wx.StaticText(pa, label="Location Search Name")
         namelab = wx.StaticText(pa, label="Display Name (≤14 characters)")
         pas.Add(loclab, 1, wx.ALL | wx.EXPAND, 2)
         pas.Add(namelab, 1, wx.ALL | wx.EXPAND, 2)
-        p3sizer.Add(pa, 0, wx.ALL | wx.EXPAND, 2)
+        p3p1sizer.Add(pa, 0, wx.ALL | wx.EXPAND, 2)
         for i in range(7):
-            pa = wx.Panel(page3)
+            pa = wx.Panel(page3p1)
             pas = wx.BoxSizer(wx.HORIZONTAL)
             pa.SetSizer(pas)
             locent = wx.TextCtrl(pa, pos=(20, 20+25*i))
@@ -578,13 +588,54 @@ class Launcher(wx.Frame):
             obsname.append(nameent)
             pas.Add(locent, 1, wx.ALL | wx.EXPAND, 2)
             pas.Add(nameent, 1, wx.ALL | wx.EXPAND, 2)
-            p3sizer.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
+            p3p1sizer.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
 
-        lsort = wx.Choice(page3, choices=["Don't Sort", "Sort Alphabetically"])
-        p3sizer.Add(lsort, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 2)
+        lsort = wx.Choice(page3p1, choices=["Don't Sort", "Sort Alphabetically"])
+        p3p1sizer.Add(lsort, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 2)
+        page3nb.AddPage(page3p1, "Local Observations")
+
+        
+        page3p2 = wx.Panel(page3nb)
+        p3p2sizer = wx.BoxSizer(wx.VERTICAL)
+        page3p2.SetSizer(p3p2sizer)
+        pa = wx.Panel(page3p2)
+        pas = wx.BoxSizer(wx.HORIZONTAL)
+        pa.SetSizer(pas)
+        loclab = wx.StaticText(pa, label="Location Search Name")
+        namelab = wx.StaticText(pa, label="Display Name (≤14 characters)")
+        pas.Add(loclab, 1, wx.ALL | wx.EXPAND, 2)
+        pas.Add(namelab, 1, wx.ALL | wx.EXPAND, 2)
+        p3p2sizer.Add(pa, 0, wx.ALL | wx.EXPAND, 2)
+        for i in range(7):
+            pa = wx.Panel(page3p2)
+            pas = wx.BoxSizer(wx.HORIZONTAL)
+            pa.SetSizer(pas)
+            locent = wx.TextCtrl(pa, pos=(20, 20+25*i))
+            nameent = wx.TextCtrl(pa, pos=(20, 20+25*i))
+            nameent.SetMaxLength(14)
+            
+            if i < len(reglocs):
+                locent.SetValue(reglocs[i][0])
+                nameent.SetValue(reglocs[i][1])
+
+            locent.SetMinSize(wx.Size(-1, 15))
+            nameent.SetMinSize(wx.Size(-1, 15))
+            
+            regloc.append(locent)
+            regname.append(nameent)
+            pas.Add(locent, 1, wx.ALL | wx.EXPAND, 2)
+            pas.Add(nameent, 1, wx.ALL | wx.EXPAND, 2)
+            p3p2sizer.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
+
+        rsort = wx.Choice(page3p2, choices=["Don't Sort", "Sort Alphabetically"])
+        p3p2sizer.Add(rsort, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 2)
+        page3nb.AddPage(page3p2, "Regional Observations")
+        
+        p3sizer.Add(page3nb, 1, wx.ALL | wx.EXPAND, 2)
 
         #page4 = wx.Panel(self.nb)
         lsort.SetSelection(existing_conf.get("lsort", 0))
+        rsort.SetSelection(existing_conf.get("rsort", 0))
         
         page5 = wx.Panel(self.nb)
         sizer2 = wx.GridSizer(2, 0, 0)
@@ -791,6 +842,7 @@ class Launcher(wx.Frame):
         addPageSelector("Current Conditions", "cc", "Shows the current weather conditions.")
         addPageSelector("Old Current Conditions", "oldcc", "Text-based CC page from before April 17, 1991.")
         addPageSelector("Latest Observations", "lo", "Displays conditions from multiple nearby stations.")
+        addPageSelector("Old Regional Observations", "oldro", "Displays conditions from multiple father-away stations.")
         addPageSelector("36-Hour Forecast", "lf", "Displays three 12-hour forecasts.\nSlide length applies per page.")
         addPageSelector("Extended Forecast", "xf", "Shows conditions for three upcoming days..")
         addPageSelector("Almanac", "al", "Shows moon, sun, and temperature information.")
@@ -800,6 +852,8 @@ class Launcher(wx.Frame):
         addPageSelector("Intro (Custom)", "intro", "Introductory slide. Place messages in introtext.txt")
         addPageSelector("School Forecast (Custom)", "sf", "Hourly conditions for popular school start/end times.")
         addPageSelector("Daypart Forecast (Custom)", "df", "Daypart conditions for the next 6 days.\nSlide length applies per page.")
+
+        #if you want to make your own slides, wait until we make an update for that. or just edit the program and send it to me
 
         page6 = wx.Panel(self.nb)
         p6sizer = wx.BoxSizer(wx.VERTICAL)
@@ -838,6 +892,10 @@ class Launcher(wx.Frame):
         pas.Add(ci1, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 2)
         pas.Add(crawlint, 0, wx.ALL, 2)
         pas.AddStretchSpacer(1)
+        pas.Add(wx.StaticText(pa, label="Crawl Length (secs):"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 2)
+        crawllen = wx.SpinCtrl(pa)
+        pas.Add(crawllen, 0, wx.ALL, 2)
+        pas.AddStretchSpacer(1)
         ci2 = wx.StaticText(pa, label="Background Path:")
         pas.Add(ci2, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 2)
         bgg = wx.FilePickerCtrl(pa)
@@ -866,6 +924,7 @@ class Launcher(wx.Frame):
             ins.SetValue(str(existing_conf.get("ldlfeed", "")))
             bgg.SetPath(existing_conf.get("ldlbg", ""))
             smode.SetSelection(existing_conf.get("smode", 0))
+            crawllen.SetValue(existing_conf.get("crawllen", 40))
         
         #fun fact for anybody reading: this page was added on november 24th
         page8 = wx.Panel(self.nb)
@@ -992,6 +1051,7 @@ class Launcher(wx.Frame):
             items.append(("lsort", lsort.GetSelection()))
             items.append(("smoothscale", smoothscale.GetValue()))
             items.append(("musicsetting", musicsetting.GetSelection()))
+            items.append(("crawllen", crawllen.GetValue()))
             iv = ins.GetValue()
             try:
                 iv = int(iv)

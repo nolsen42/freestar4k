@@ -11,7 +11,7 @@ from io import BytesIO
 import runpy
 import gc
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 audiorate = 44100
 widescreen = False
@@ -2796,7 +2796,7 @@ while working:
         colorbug_started = False
     #here for testing
     #pg.draw.rect(win, (187, 17, 0), pg.Rect(0, 404, screenw, 76))
-    if slide not in ["cr", "lr"]:
+    if slide not in ["cr", "lr"] and not ldlmode:
         draw_ldl(all_offset=ao, bh_offset=ao//2)
     ldl_y_off = -2
     if (ldlon and not serial) or not ldlmode or alerting:
@@ -2958,10 +2958,13 @@ while working:
                 crawling = False
                 nextcrawlready = True
 
-    if slide not in ["cr", "lr"]:
+    if slide not in ["cr", "lr"] and not ldlmode:
         draw_banner(all_offset=ao, bh_offset=ao//2)
         win.blit(logo, (txoff//3, ldl_y))
-    if slide == "oldcc" or (slide == "cc" and textpos > 1):
+    
+    if ldlmode:
+        pass
+    elif slide == "oldcc" or (slide == "cc" and textpos > 1):
         ln = f"Now at {locname}"
         drawshadow(startitlefont, ln, 194+txoff//3, 30, 3, mono=18, ofw=1.07, upper=veryuppercase)
     elif slide == "cc":

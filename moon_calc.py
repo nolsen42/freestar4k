@@ -2,7 +2,7 @@ import datetime as dt
 import math
 
 global REF_NEW_MOON; global REF_LAST_QUARTER; global REF_FIRST_QUARTER; global REF_FULL; global SYNODIC_MONTH
-SYNODIC_MONTH = 29.530588853
+SYNODIC_MONTH = 29.53059
 REF_NEW_MOON = dt.datetime(2025, 12, 20, 1, 43)
 REF_FIRST_QUARTER = dt.datetime(2025, 11, 28, 6, 58)
 REF_FULL = dt.datetime(2025, 12, 4, 23, 14)

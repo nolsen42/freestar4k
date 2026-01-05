@@ -690,8 +690,8 @@ xficontable = [
 
 icon_offset = {"Rain": (10, 10), "Sunny": (0, 10), "Fog": (0, 15)}
 
-mainicon = pg.image.load_animation("icons_cc/Partly-Cloudy.gif")
-ldllficon = pg.image.load_animation("icons_reg/Partly-Cloudy.gif")
+mainicon = pg.image.load_animation("icons/cc/Partly-Cloudy.gif")
+ldllficon = pg.image.load_animation("icons/reg/Partly-Cloudy.gif")
 xficons = [None, None, None, None, None, None]
 
 regmap = pg.image.load("misc_images/regmap.png")
@@ -776,7 +776,7 @@ def getdata():
             if icontable[wxdata['current']['info']['iconCode']] is None:
                 mainicon = [(pg.Surface((1, 1), pg.SRCALPHA), None)]
             else:
-                micon = pg.image.load_animation(f"icons_cc/{icontable[wxdata['current']['info']['iconCode']]}.gif")
+                micon = pg.image.load_animation(f"icons/cc/{icontable[wxdata['current']['info']['iconCode']]}.gif")
                 nmicon = []
                 for fr, ftime in micon:
                     nmicon.append((fr.convert_alpha(), ftime))
@@ -785,7 +785,7 @@ def getdata():
             if regionalicontable[wxdata['extended']['daypart'][dn]['iconCode']] is None:
                 mainicon = [(pg.Surface((1, 1), pg.SRCALPHA), None)]
             else:
-                micon = pg.image.load_animation(f"icons_reg/{regionalicontable[wxdata['extended']['daypart'][dn]['iconCode']]}.gif")
+                micon = pg.image.load_animation(f"icons/reg/{regionalicontable[wxdata['extended']['daypart'][dn]['iconCode']]}.gif")
                 nricon = []
                 for fr, ftime in micon:
                     nricon.append((fr.convert_alpha(), ftime))
@@ -795,7 +795,7 @@ def getdata():
                 for i in range(12):
                     ic = regionalicontable[wxdata['extended']['daypart'][i+4]['iconCode']]
                     if ic:
-                        dficons[i] = [(s.convert_alpha(), ft) for s, ft in pg.image.load_animation(f"icons_reg/{ic}.gif")]
+                        dficons[i] = [(s.convert_alpha(), ft) for s, ft in pg.image.load_animation(f"icons/reg/{ic}.gif")]
                     else:
                         dficons[i] = []
             
@@ -837,7 +837,7 @@ def getdata():
                 if xficontable[wxdata['extended']['daypart'][ix]['iconCode']] is None:
                     ficon = [(pg.Surface((1, 1), pg.SRCALPHA), None)]
                 else:
-                    xficon = pg.image.load_animation(f"icons_xf/{xficontable[wxdata['extended']['daypart'][ix]['iconCode']]}.gif")
+                    xficon = pg.image.load_animation(f"icons/xf/{xficontable[wxdata['extended']['daypart'][ix]['iconCode']]}.gif")
                     ficon = []
                     for fr, ftime in xficon:
                         ficon.append((fr.convert_alpha(), ftime))
@@ -913,7 +913,7 @@ def getdata():
             global leds
             try:
                 l[2] = r.get(f"https://wx.lewolfyt.cc/?loc={l[0]}&include=current"+("" if not metric else "&units=m")).json()
-                l3 = pg.image.load_animation(f'icons_reg/{regionalicontable[l[2]["current"]["info"]["iconCode"]]}.gif')
+                l3 = pg.image.load_animation(f'icons/reg/{regionalicontable[l[2]["current"]["info"]["iconCode"]]}.gif')
                 l[3] = [(l[0].convert_alpha(), l[1]) for l in l3]
                 #print("got reg icon")
                 leds[1] = True
@@ -923,7 +923,7 @@ def getdata():
             global leds
             try:
                 l[2] = r.get(f"https://wx.lewolfyt.cc/?loc={l[0]}&include=extended"+("" if not metric else "&units=m")).json()
-                l3 = pg.image.load_animation(f'icons_reg/{regionalicontable[l[2]["extended"]["daypart"][1+(l[2]["extended"]["daypart"][0]["dayOrNight"]=="D")]["iconCode"]]}.gif')
+                l3 = pg.image.load_animation(f'icons/reg/{regionalicontable[l[2]["extended"]["daypart"][1+(l[2]["extended"]["daypart"][0]["dayOrNight"]=="D")]["iconCode"]]}.gif')
                 l[3] = [(l[0].convert_alpha(), l[1]) for l in l3]
                 #print("got reg icon")
                 leds[1] = True

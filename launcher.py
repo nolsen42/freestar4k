@@ -283,6 +283,7 @@ class Launcher(wx.Frame):
         pas.Add(tx, 0, wx.ALL, 2)
         pas.Add(self.textpos, 0, wx.ALL, 2)
         tpas.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
+        tpas.AddStretchSpacer()
 
         pa = wx.Panel(tpa)
         pas = wx.BoxSizer(wx.VERTICAL)
@@ -292,6 +293,7 @@ class Launcher(wx.Frame):
         pas.Add(tx, 0, wx.ALL, 2)
         pas.Add(radarsetting, 0, wx.ALL, 2)
         tpas.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
+        tpas.AddStretchSpacer()
         
         pa = wx.Panel(tpa)
         pas = wx.BoxSizer(wx.VERTICAL)
@@ -305,6 +307,19 @@ class Launcher(wx.Frame):
         pth = ""
         if conf_exist:
             pth = existing_conf.get("musicdir", "")
+        
+        tpas.AddStretchSpacer()
+        
+        pa = wx.Panel(tpa)
+        pas = wx.BoxSizer(wx.VERTICAL)
+        pa.SetSizer(pas)
+        pas.Add(wx.StaticText(pa, label="Framerate"), 0, wx.ALL | wx.EXPAND, 2)
+        framerate = wx.SpinCtrl(pa)
+        framerate.SetValue(existing_conf.get("framerate", 60))
+        pas.Add(framerate, 0, wx.ALL | wx.EXPAND, 2)
+        tpas.Add(pa, 1, wx.ALL | wx.EXPAND, 2)
+        
+        tpas.AddStretchSpacer()
         
         pa = wx.Panel(tpa)
         pas = wx.BoxSizer(wx.VERTICAL)

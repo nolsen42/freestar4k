@@ -11,7 +11,7 @@ from io import BytesIO
 import runpy
 import gc
 
-VERSION = "1.2.2 Unstable C"
+VERSION = "1.2.2 Unstable E"
 
 audiorate = 44100
 widescreen = False
@@ -1186,6 +1186,8 @@ white = (215, 215, 215)
 def drawshadow(font, text, x, y, offset, color=white, surface=win, mono=0, ofw=None, bs=False, char_offsets=char_offsets_default, upper=False, jr_override=None, shadow=True, variable=None, leftalign=False):
     if text == "":
         return
+    if upper:
+        text = text.upper()
     if not jr:
         t = [c for ch in text if c not in "±≠"]
         text = "".join(t)
@@ -2103,7 +2105,7 @@ while working:
         if not fired and mn in schedule:
             fired = True
             ldlmode = False
-    your = "Your " if ("oldtitles" in old and textpos > 1) else ""
+    your = "Your " if ("oldtitles" in old and (textpos > 1 or widescreen)) else ""
     delta = cl.tick(60) / 1000
     
     radartime -= delta
@@ -2341,7 +2343,7 @@ while working:
                     ln = f"Now at {locname}"
                     if veryuppercase:
                         ln = ln.upper()
-                    drawshadow(startitlefont, ln, 194+txoff//3, 46+ldl_y, 3, mono=18, ofw=1.07)
+                    drawshadow(startitlefont, ln, 194+txoff//3, 46+ldl_y, 3, mono=18, ofw=1.07, upper=veryuppercase)
                 else:
                     drawshadow(startitlefont, "Current", 194+txoff//3, 25+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
                     drawshadow(startitlefont, "Conditions", 194+txoff//3, 52+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
@@ -2458,17 +2460,22 @@ while working:
             alert36 = False
             allines = []
             
+            alerts = []
             for alert in alertdata[1]:
                 if alert[1] != "W":
-                    allines = [lin.strip().rstrip() for lin in wraptext(alert[0].upper(), 30)]
-                    finallines = []
-                    for line in allines:
-                        finallines.append(
-                            textmerge("*"+30*" "+"*", m.ceil(16-len(line)/2)*" "+line)
-                        )
                     alert36 = True
-                    allines = finallines + [""]
-                    break
+                    alerts.append(alert)
+            
+            finallines = []
+            for alert in alerts:
+                allines = [lin.strip().rstrip() for lin in wraptext(alert[0].upper(), 30)]
+                for line in allines:
+                    finallines.append(
+                        textmerge("*"+30*" "+"*", m.ceil(16-len(line)/2)*" "+line)
+                    )
+                finallines.append("\n")
+                
+                break
             
             if wxdata:
                 if not alert36:
@@ -2485,21 +2492,9 @@ while working:
                 else:
                     fcsts = wxdata["extended"]["daypart"]
                     
-                    all_lines = allines.copy()
+                    all_lines = finallines.copy()
                     
-                    for i in range(3):
-                        text = (fcsts[i]["name"][0].upper() + fcsts[i]["name"][1:].lower()) + "..." + fcsts[i]["narration"]
-                        if veryuppercase:
-                            text = text.upper()
-                        all_lines.extend(wraptext(text))
-                        all_lines.extend([""])
-                    if all_lines[7] == "":
-                        all_lines.pop(7)
-                    if all_lines[14] == "":
-                        all_lines.pop(14)
-                    if len(all_lines) > 21:
-                        if all_lines[21] == "":
-                            all_lines.pop(21)
+                    
                     
                     drawpage(all_lines[(subpage*7):])
         elif slide == "lr":
@@ -2651,6 +2646,8 @@ while working:
                     line = textmerge(line, f"                          {precip_type}")
                     
                     page.append(line)
+                if veryuppercase:
+                    page = [p.upper() for p in page]
                 drawpage(page, f"        WEATHER   °{temp_symbol} PRECIP")
         elif slide == "df":
             drawshadow(startitlefont, "Daypart Forecast", 181+txoff//3, 39+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True, upper=veryuppercase)
@@ -2662,11 +2659,11 @@ while working:
                     j = i+4+subpage*4
                     header = wxdata["extended"]["daypart"][j]["name"].upper()
                     header = textmerge(header, f"                {'HI' if wxdata['extended']['daypart'][j]['dayOrNight'] == 'D' else 'LO'}  WIND")
-                    drawshadow(smallfont, header, 62+14+txoff, 84+ldl_y+(yoo+77)*i+9, 3, mono=gmono)
+                    drawshadow(smallfont, header, 62+14+txoff, 84+ldl_y+(yoo+77)*i+9, 3, mono=gmono, upper=veryuppercase)
                     ps = wxdata["extended"]["daypart"][j]["phraseShort"]
                     pl = wxdata["extended"]["daypart"][j]["phraseLong"]
-                    drawshadow(starfont32, ps if len(pl) > 14 else pl, 62+14+txoff, 96+14+ldl_y+(yoo+77)*i+9, 3, mono=gmono)
-                    drawshadow(starfont32, padtext(wxdata["extended"]["daypart"][j]["temperature"], 3), 62+14+txoff+18*15, 96+14+ldl_y+(yoo+77)*i+9, 3, mono=gmono)
+                    drawshadow(starfont32, ps if len(pl) > 14 else pl, 62+14+txoff, 96+14+ldl_y+(yoo+77)*i+9, 3, mono=gmono, upper=veryuppercase)
+                    drawshadow(starfont32, padtext(wxdata["extended"]["daypart"][j]["temperature"], 3), 62+14+txoff+18*15, 96+14+ldl_y+(yoo+77)*i+9, 3, mono=gmono, upper=veryuppercase)
                     ws = wxdata["extended"]["daypart"][j]["windSpeed"]
                     wc = wxdata["extended"]["daypart"][j]["windCardinal"]
                     if ws > 9:
@@ -2675,14 +2672,17 @@ while working:
                         wt = "Calm"
                     else:
                         wt = textmerge(wc, f"   {ws}")
-                    drawshadow(starfont32, wt, 62+14+txoff+18*20, 96+14+ldl_y+(yoo+77)*i+9, 3, mono=gmono)
+                    drawshadow(starfont32, wt, 62+14+txoff+18*20, 96+14+ldl_y+(yoo+77)*i+9, 3, mono=gmono, upper=veryuppercase)
                     drawreg(dficons[j-4], (640+txoff-15, 96+14+ldl_y+(yoo+77)*i+20), ix=(m.floor(iconidx3) % len(dficons[j-4])))
         elif slide == "intro":
             drawshadow(startitlefont, "Welcome!", 181+txoff//3, 39+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True, upper=veryuppercase)
 
             generaldrawidx += 3.5
             dr = generaldrawidx*1
-            it = f"Hello, {locname}!"
+            it = f"Hello,"
+            if veryuppercase:
+                it = it.upper()
+            it += " "+locname+"!"
             tx, dr = drawing(it, dr, True)
             drawshadow(largefont32, tx, 98+txoff, 109+linespacing/2+ldl_y, 3, mono=20)
             
@@ -2737,8 +2737,8 @@ while working:
                     drawreg(tcflocs[i][3], (430, 72*i+120+yy+20), (m.floor(iconidx3) % len(tcflocs[i][3])))
             
             pg.draw.rect(win, outer_c, pg.Rect(0, 91, screenw, 20))
-            drawshadow(smallfont, "LOW", 479+round((screenw-768)*2/3)+54, 75, 3, color=yeller, mono=gmono, char_offsets={})
-            drawshadow(smallfont, "HIGH", 479+round((screenw-768)*2/3)+54+66, 75, 3, color=yeller, mono=gmono, char_offsets={})
+            drawshadow(smallfont, "LOW", 479+round((screenw-768)*2/3)+54, 75+ldl_y, 3, color=yeller, mono=gmono, char_offsets={})
+            drawshadow(smallfont, "HIGH", 479+round((screenw-768)*2/3)+54+66, 75+ldl_y, 3, color=yeller, mono=gmono, char_offsets={})
         elif slide == "ti":
             lines = ["", "", "", "", "", "", ""]
             line = tidal[2]
@@ -2968,6 +2968,8 @@ while working:
         pass
     elif slide == "oldcc" or (slide == "cc" and textpos > 1):
         ln = f"Now at {locname}"
+        if veryuppercase:
+            ln = ln.upper()
         drawshadow(startitlefont, ln, 194+txoff//3, 30, 3, mono=18, ofw=1.07, upper=veryuppercase)
     elif slide == "cc":
         drawshadow(startitlefont, "Current", 194+txoff//3, 25+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
@@ -2981,8 +2983,11 @@ while working:
     elif slide == "al":
         drawshadow(startitlefont, "Almanac", 181+txoff//3, 39+ldl_y, 3, color=yeller, mono=18, ofw=1.07, bs=True, upper=veryuppercase)
     elif slide == "xf":
-        drawshadow(startitlefont, efname, 180+txoff//3, 23+ldl_y, 3, mono=15, ofw=1.07, upper=veryuppercase)
-        drawshadow(startitlefont, "Extended Forecast", 180+txoff//3, 49+ldl_y, 3, mono=15, ofw=1.07, upper=veryuppercase, color=yeller)
+        if "oldtitles" in old:
+            drawshadow(startitlefont, your+"Extended Forecast", 181+txoff//3, 39+ldl_y, 3, color=yeller, mono=15.5, ofw=1.07, bs=True, upper=veryuppercase)
+        else:
+            drawshadow(startitlefont, efname, 180+txoff//3, 23+ldl_y, 3, mono=15, ofw=1.07, upper=veryuppercase)
+            drawshadow(startitlefont, "Extended Forecast", 180+txoff//3, 49+ldl_y, 3, mono=15, ofw=1.07, upper=veryuppercase, color=yeller)
     elif slide == "ol":
         drawshadow(startitlefont, "Outlook", 194+txoff//3, 39+ldl_y, 3, color=yeller, mono=16, ofw=1.07, bs=True, upper=veryuppercase)
     elif slide == "sf":

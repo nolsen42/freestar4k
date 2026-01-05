@@ -1146,9 +1146,9 @@ def quickread(file):
         return f.read().strip().rstrip()
 
 def loadjrfont(name):
-    surfs = (pg.image.load(f"jrfonts/fill/{name}.png").convert_alpha(), pg.image.load(f"jrfonts/shadow/{name}.png").convert_alpha())
-    widths = quickread(f"jrfonts/fill/{name}.widths.txt").split(",")
-    offsets = quickread(f"jrfonts/fill/{name}.offsets.txt").split(",")
+    surfs = (pg.image.load(f"fonts/jrfonts/fill/{name}.png").convert_alpha(), pg.image.load(f"fonts/jrfonts/shadow/{name}.png").convert_alpha())
+    widths = quickread(f"fonts/jrfonts/fill/{name}.widths.txt").split(",")
+    offsets = quickread(f"fonts/jrfonts/fill/{name}.offsets.txt").split(",")
     off2 = {}
     for i, v in enumerate(offsets):
         off2[chars[i]] = -int(v)

@@ -1707,7 +1707,7 @@ for ext in ext_loaded:
         parse_ext_action(ext_action)
 
 if not mute:
-    beep = pg.Sound("beep.ogg")
+    beep = pg.Sound("sounds/beep.ogg")
 radarx = ['', '99'][radarsetting]
 radarHeader = pg.transform.scale(pg.image.load(f"radar_images/radar{radarx}.png"), (768, 480))
 radarHeaderC = pg.transform.scale(pg.image.load(f"radar_images/radarc{radarx}.png"), (768, 480))

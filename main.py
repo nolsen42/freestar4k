@@ -249,7 +249,7 @@ else:
     rwin = pg.display.set_mode((rwidth, 480), flags=(borderless*pg.NOFRAME)|pg.RESIZABLE)
 
 pg.display.set_caption(f"FreeStar 4000 v{VERSION}")
-icon = pg.image.load("misc_images/mwsicon.png")
+icon = pg.image.load("images/misc/mwsicon.png")
 pg.display.set_icon(icon)
 
 ext_loaded = []
@@ -694,7 +694,7 @@ mainicon = pg.image.load_animation("icons/cc/Partly-Cloudy.gif")
 ldllficon = pg.image.load_animation("icons/reg/Partly-Cloudy.gif")
 xficons = [None, None, None, None, None, None]
 
-regmap = pg.image.load("misc_images/regmap.png")
+regmap = pg.image.load("images/misc/regmap.png")
 regmapcut = pg.Surface((screenw, 480), pg.SRCALPHA)
 regmapcut.fill(_gray)
 
@@ -1356,7 +1356,7 @@ else:
 
 #ws2 = pg.transform.smoothscale(pg.image.load("almanacref2b.png"), (768, 480))
 
-noaa = pg.image.load("misc_images/noaa.gif").convert_alpha()
+noaa = pg.image.load("images/misc/noaa.gif").convert_alpha()
 
 logo = pg.image.load(mainlogo)
 logorad = pg.image.load(radarlogo)
@@ -1709,8 +1709,8 @@ for ext in ext_loaded:
 if not mute:
     beep = pg.Sound("sounds/beep.ogg")
 radarx = ['', '99'][radarsetting]
-radarHeader = pg.transform.scale(pg.image.load(f"radar_images/radar{radarx}.png"), (768, 480))
-radarHeaderC = pg.transform.scale(pg.image.load(f"radar_images/radarc{radarx}.png"), (768, 480))
+radarHeader = pg.transform.scale(pg.image.load(f"images/radar/radar{radarx}.png"), (768, 480))
+radarHeaderC = pg.transform.scale(pg.image.load(f"images/radar/radarc{radarx}.png"), (768, 480))
 if screenw > 768:
     radarLeft = pg.transform.scale(radarHeader.subsurface(pg.Rect(0, 0, 1, radarHeader.get_height())), (m.ceil((screenw-768)/2), radarHeader.get_height()))
     radarRight = pg.transform.scale(radarHeader.subsurface(pg.Rect(radarHeader.get_width()-1, 0, 1, radarHeader.get_height())), (m.ceil((screenw-768)/2), radarHeader.get_height()))
@@ -1993,7 +1993,7 @@ if outputs:
         set_post_mix(postmix)
         th.Thread(target=dowriteaudio, daemon=True).start()
 
-xfbg = pg.image.load("misc_images/xfbg.png")
+xfbg = pg.image.load("images/misc/xfbg.png")
 
 def safedivide(x, y):
     if y == 0:
